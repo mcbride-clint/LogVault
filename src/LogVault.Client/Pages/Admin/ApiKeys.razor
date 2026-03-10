@@ -1,0 +1,126 @@
+@page "/admin/apikeys"
+@inject ILogVaultApiClient Api
+
+<h1>API Keys</h1>
+
+@if (_showNewKeyModal && _newKeyResult != null)
+{
+    <div class="modal show d-block" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">API Key Created</h5>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">Save this key now — it will not be shown again.</div>
+                    <p><strong>Label:</strong> @_newKeyResult.Label</p>
+                    <p><strong>Key:</strong></p>
+                    <div class="input-group">
+                        <input class="form-control font-monospace" value="@_newKeyResult.RawKey" readonly />
+                        <button class="btn btn-outline-secondary" @onclick="() => CopyToClipboard(_newKeyResult.RawKey)">Copy</button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" @onclick="() => { _showNewKeyModal = false; _newKeyResult = null; }">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@if (_showRotateModal && _rotateResult != null)
+{
+    <div class="modal show d-block" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">API Key Rotated</h5></div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">Save this new key now — it will not be shown again.</div>
+                    <p><strong>New Key:</strong></p>
+                    <div class="input-group">
+                        <input class="form-control font-monospace" value="@_rotateResult.RawKey" readonly />
+                        <button class="btn btn-outline-secondary" @onclick="() => CopyToClipboard(_rotateResult.RawKey)">Copy</button>
+                    </div>
+                    <p class="mt-2 text-muted">Old key expires: @_rotateResult.OldKeyExpiresAt?.ToLocalTime()</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" @onclick="() => { _showRotateModal = false; _rotateResult = null; }">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+<div class="mb-3 d-flex gap-2">
+    <input class="form-control" style="max-width:200px" @bind="_newLabel" placeholder="Label" />
+    <input class="form-control" style="max-width:200px" @bind="_newApp" placeholder="Default Application" />
+    <button class="btn btn-primary" @onclick="CreateKey">Create New Key</button>
+</div>
+
+@if (_keys != null)
+{
+    <table class="table">
+        <thead><tr><th>Label</th><th>Application</th><th>Created</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var key in _keys)
+        {
+            <tr>
+                <td>@key.Label</td>
+                <td>@key.DefaultApplication</td>
+                <td>@key.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                <td>
+                    @if (key.IsRevoked) { <span class="badge bg-danger">Revoked</span> }
+                    else if (key.ExpiresAt.HasValue) { <span class="badge bg-warning text-dark">Expiring @key.ExpiresAt.Value.ToLocalTime().ToString("MM/dd HH:mm")</span> }
+                    else if (key.IsEnabled) { <span class="badge bg-success">Active</span> }
+                    else { <span class="badge bg-secondary">Disabled</span> }
+                </td>
+                <td>
+                    @if (!key.IsRevoked)
+                    {
+                        <button class="btn btn-sm btn-outline-warning me-1" @onclick="() => Rotate(key.Id)">Rotate</button>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => Revoke(key.Id)">Revoke</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ApiKeyDto>? _keys;
+    private string _newLabel = "";
+    private string _newApp = "";
+    private bool _showNewKeyModal;
+    private CreateApiKeyResult? _newKeyResult;
+    private bool _showRotateModal;
+    private RotateApiKeyResult? _rotateResult;
+
+    protected override async Task OnInitializedAsync()
+        => _keys = await Api.GetApiKeysAsync();
+
+    private async Task CreateKey()
+    {
+        if (string.IsNullOrWhiteSpace(_newLabel)) return;
+        _newKeyResult = await Api.CreateApiKeyAsync(_newLabel, string.IsNullOrEmpty(_newApp) ? null : _newApp);
+        if (_newKeyResult != null) { _showNewKeyModal = true; _newLabel = ""; _newApp = ""; }
+        _keys = await Api.GetApiKeysAsync();
+    }
+
+    private async Task Rotate(int id)
+    {
+        _rotateResult = await Api.RotateApiKeyAsync(id);
+        if (_rotateResult != null) _showRotateModal = true;
+        _keys = await Api.GetApiKeysAsync();
+    }
+
+    private async Task Revoke(int id)
+    {
+        await Api.RevokeApiKeyAsync(id);
+        _keys = await Api.GetApiKeysAsync();
+    }
+
+    private Task CopyToClipboard(string text) => Task.CompletedTask; // JS interop placeholder
+}

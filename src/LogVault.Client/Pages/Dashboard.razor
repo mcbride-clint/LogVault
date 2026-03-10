@@ -1,0 +1,90 @@
+@page "/dashboard"
+@page "/"
+@inject ILogVaultApiClient Api
+
+<h1>Dashboard</h1>
+
+@if (_loading)
+{
+    <p>Loading...</p>
+}
+else if (_stats != null)
+{
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h4>Events by Level (last 24h)</h4>
+            <table class="table table-sm">
+                <thead><tr><th>Level</th><th>Count</th></tr></thead>
+                <tbody>
+                @foreach (var lc in _stats.ByLevel)
+                {
+                    <tr>
+                        <td><span class="badge @GetLevelClass(lc.Level)">@lc.Level</span></td>
+                        <td>@lc.Count</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <div class="col-md-6">
+            <h4>Events per Hour (last 24h)</h4>
+            @foreach (var h in _stats.ByHour.TakeLast(12))
+            {
+                <div style="font-size:0.8em">@h.Hour.ToLocalTime().ToString("HH:mm"): @h.Count</div>
+            }
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <h4>Recent Errors</h4>
+            @if (_recentErrors != null)
+            {
+                <table class="table table-sm table-hover">
+                    <thead><tr><th>Time</th><th>App</th><th>Message</th></tr></thead>
+                    <tbody>
+                    @foreach (var ev in _recentErrors.Items)
+                    {
+                        <tr>
+                            <td>@ev.Timestamp.ToLocalTime().ToString("MM/dd HH:mm")</td>
+                            <td>@ev.SourceApplication</td>
+                            <td>@Truncate(ev.RenderedMessage, 80)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private LogStats? _stats;
+    private PagedResult<LogEventDto>? _recentErrors;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var from = now.AddHours(-24);
+
+        _stats = await Api.GetStatsAsync(from, now);
+        _recentErrors = await Api.QueryLogsAsync(new LogQuery(
+            From: from, Level: "Error", Page: 1, PageSize: 20, Desc: true));
+
+        _loading = false;
+    }
+
+    private static string GetLevelClass(string level) => level switch
+    {
+        "Fatal" => "bg-dark",
+        "Error" => "bg-danger",
+        "Warning" => "bg-warning text-dark",
+        "Information" => "bg-info text-dark",
+        "Debug" => "bg-secondary",
+        _ => "bg-light text-dark"
+    };
+
+    private static string Truncate(string s, int max)
+        => s.Length <= max ? s : s[..max] + "…";
+}

@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LogVault.Api/LogVault.Api.csproj" />
+    <Project Path="src/LogVault.Application/LogVault.Application.csproj" />
+    <Project Path="src/LogVault.Client/LogVault.Client.csproj" />
+    <Project Path="src/LogVault.Domain/LogVault.Domain.csproj" />
+    <Project Path="src/LogVault.Infrastructure.Mail/LogVault.Infrastructure.Mail.csproj" />
+    <Project Path="src/LogVault.Infrastructure/LogVault.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LogVault.Api.Tests/LogVault.Api.Tests.csproj" />
+    <Project Path="tests/LogVault.Application.Tests/LogVault.Application.Tests.csproj" />
+    <Project Path="tests/LogVault.Infrastructure.Tests/LogVault.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>

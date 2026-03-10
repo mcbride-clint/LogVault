@@ -1,0 +1,73 @@
+@page "/login"
+@inject ILogVaultApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<h1>Sign In</h1>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<div style="max-width:400px">
+    <div class="mb-3">
+        <label class="form-label">Username</label>
+        <input class="form-control" @bind="_username" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Password</label>
+        <input type="password" class="form-control" @bind="_password" @onkeyup="OnKeyUp" />
+    </div>
+    <div class="mb-3 form-check">
+        <input type="checkbox" class="form-check-input" @bind="_rememberMe" id="rememberMe" />
+        <label class="form-check-label" for="rememberMe">Remember me</label>
+    </div>
+    <button class="btn btn-primary" @onclick="DoLogin" disabled="@_busy">
+        @(_busy ? "Signing in..." : "Sign In")
+    </button>
+</div>
+
+@code {
+    private string _username = "";
+    private string _password = "";
+    private bool _rememberMe;
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await Api.GetMeAsync();
+        if (user != null)
+        {
+            Auth.SetUser(user);
+            Nav.NavigateTo("/dashboard");
+        }
+    }
+
+    private async Task OnKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await DoLogin();
+    }
+
+    private async Task DoLogin()
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            var result = await Api.LoginAsync(_username, _password, _rememberMe);
+            if (result == null)
+            {
+                _error = "Invalid username or password.";
+                return;
+            }
+            Auth.SetUser(new UserInfo(result.Username, result.DisplayName, result.Email, result.Roles, "Cookie"));
+            Nav.NavigateTo("/dashboard");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

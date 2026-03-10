@@ -1,0 +1,54 @@
+@page "/admin/purge"
+@inject ILogVaultApiClient Api
+
+<h1>Log Retention</h1>
+
+<div class="card mb-3" style="max-width:400px">
+    <div class="card-body">
+        <h5 class="card-title">Automatic Retention</h5>
+        <p class="card-text text-muted">Configure in appsettings.json under <code>Retention</code>.</p>
+        <button class="btn btn-warning" @onclick="TriggerRetention" disabled="@_busy">
+            @(_busy ? "Running..." : "Run Retention Now")
+        </button>
+        @if (_retentionResult != null)
+        {
+            <div class="alert alert-info mt-2">Deleted @_retentionResult.DeletedCount events.</div>
+        }
+    </div>
+</div>
+
+<div class="card" style="max-width:400px">
+    <div class="card-body">
+        <h5 class="card-title">Manual Purge</h5>
+        <div class="mb-3">
+            <label class="form-label">Delete events older than</label>
+            <input type="datetime-local" class="form-control" @bind="_purgeBefore" />
+        </div>
+        <button class="btn btn-danger" @onclick="PurgeLogs" disabled="@_busy">Purge</button>
+        @if (_purgeResult != null)
+        {
+            <div class="alert alert-info mt-2">Deleted @_purgeResult.DeletedCount events.</div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool _busy;
+    private PurgeResult? _retentionResult;
+    private PurgeResult? _purgeResult;
+    private DateTime _purgeBefore = DateTime.UtcNow.AddDays(-30);
+
+    private async Task TriggerRetention()
+    {
+        _busy = true;
+        _retentionResult = await Api.TriggerRetentionAsync();
+        _busy = false;
+    }
+
+    private async Task PurgeLogs()
+    {
+        _busy = true;
+        _purgeResult = await Api.PurgeLogsAsync(new DateTimeOffset(_purgeBefore, TimeSpan.Zero));
+        _busy = false;
+    }
+}

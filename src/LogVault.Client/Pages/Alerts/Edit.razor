@@ -1,0 +1,130 @@
+@page "/alerts/new"
+@page "/alerts/{Id:int}"
+@inject ILogVaultApiClient Api
+@inject NavigationManager Nav
+
+<h1>@(Id == 0 ? "New Alert Rule" : "Edit Alert Rule")</h1>
+
+@if (_loading) { <p>Loading...</p> }
+else
+{
+    <div style="max-width:600px">
+        <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input class="form-control" @bind="_name" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Minimum Level</label>
+            <select class="form-select" @bind="_level">
+                <option>Verbose</option><option>Debug</option><option>Information</option>
+                <option>Warning</option><option>Error</option><option>Fatal</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Source Application Filter (optional)</label>
+            <input class="form-control" @bind="_appFilter" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Filter Expression</label>
+            <textarea class="form-control" rows="3" @bind="_expr"></textarea>
+            <small class="text-muted">Examples: level >= Error | message contains "timeout" | app == "MyApp" AND level >= Warning</small>
+        </div>
+        <div class="mb-3">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="TestExpr">Test Expression</button>
+            @if (_testResult != null)
+            {
+                <span class="ms-2 @(_testResult.Valid ? "text-success" : "text-danger")">
+                    @(_testResult.Valid ? "Valid" : _testResult.Error)
+                </span>
+            }
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Throttle (minutes between emails)</label>
+            <input type="number" class="form-control" @bind="_throttle" min="1" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Recipients</label>
+            @foreach (var (email, i) in _recipients.Select((e, i) => (e, i)))
+            {
+                <div class="input-group mb-1">
+                    <input class="form-control" value="@email" @oninput="e => _recipients[i] = e.Value?.ToString() ?? string.Empty" />
+                    <button class="btn btn-outline-danger" @onclick="() => _recipients.RemoveAt(i)">Remove</button>
+                </div>
+            }
+            <button class="btn btn-sm btn-outline-secondary" @onclick="() => _recipients.Add(string.Empty)">Add Recipient</button>
+        </div>
+        <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" @bind="_enabled" id="enabled" />
+            <label class="form-check-label" for="enabled">Enabled</label>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+
+        <button class="btn btn-primary" @onclick="Save">Save</button>
+        <a href="/alerts" class="btn btn-secondary ms-2">Cancel</a>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private string _name = "";
+    private string _level = "Error";
+    private string _appFilter = "";
+    private string _expr = "level >= Error";
+    private int _throttle = 60;
+    private List<string> _recipients = new();
+    private bool _enabled = true;
+    private bool _loading = true;
+    private string? _error;
+    private TestExpressionResult? _testResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id != 0)
+        {
+            var rules = await Api.GetAlertsAsync();
+            var rule = rules?.FirstOrDefault(r => r.Id == Id);
+            if (rule != null)
+            {
+                _name = rule.Name;
+                _level = rule.MinimumLevel;
+                _appFilter = rule.SourceApplicationFilter ?? "";
+                _expr = rule.FilterExpression;
+                _throttle = rule.ThrottleMinutes;
+                _recipients = new(rule.RecipientEmails);
+                _enabled = rule.IsEnabled;
+            }
+        }
+        _loading = false;
+    }
+
+    private async Task TestExpr()
+    {
+        _testResult = await Api.TestExpressionAsync(_expr);
+    }
+
+    private async Task Save()
+    {
+        _error = null;
+        var request = new AlertRuleRequest(
+            _name, _expr, _level,
+            string.IsNullOrEmpty(_appFilter) ? null : _appFilter,
+            _throttle, _enabled,
+            _recipients.Where(r => !string.IsNullOrWhiteSpace(r)).ToList());
+
+        AlertRuleDto? result;
+        if (Id == 0)
+            result = await Api.CreateAlertAsync(request);
+        else
+            result = await Api.UpdateAlertAsync(Id, request);
+
+        if (result != null)
+            Nav.NavigateTo("/alerts");
+        else
+            _error = "Failed to save alert rule.";
+    }
+}

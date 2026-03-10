@@ -1,0 +1,52 @@
+@page "/alerts"
+@inject ILogVaultApiClient Api
+@inject NavigationManager Nav
+
+<h1>Alert Rules</h1>
+
+<a href="/alerts/new" class="btn btn-primary mb-3">New Alert Rule</a>
+
+@if (_loading) { <p>Loading...</p> }
+else if (_rules != null)
+{
+    <table class="table table-hover">
+        <thead><tr><th>Name</th><th>Level</th><th>Expression</th><th>Throttle</th><th>Enabled</th><th>Last Fired</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var rule in _rules)
+        {
+            <tr>
+                <td>@rule.Name</td>
+                <td>@rule.MinimumLevel</td>
+                <td><code>@Truncate(rule.FilterExpression, 40)</code></td>
+                <td>@rule.ThrottleMinutes min</td>
+                <td>@(rule.IsEnabled ? "Yes" : "No")</td>
+                <td>@(rule.LastFiredAt?.ToLocalTime().ToString("MM/dd HH:mm") ?? "Never")</td>
+                <td>
+                    <a href="/alerts/@rule.Id" class="btn btn-sm btn-outline-primary">Edit</a>
+                    <button class="btn btn-sm btn-outline-danger" @onclick="() => Delete(rule.Id)">Delete</button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<AlertRuleDto>? _rules;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _rules = await Api.GetAlertsAsync();
+        _loading = false;
+    }
+
+    private async Task Delete(int id)
+    {
+        await Api.DeleteAlertAsync(id);
+        _rules = await Api.GetAlertsAsync();
+    }
+
+    private static string Truncate(string s, int max)
+        => s.Length <= max ? s : s[..max] + "…";
+}

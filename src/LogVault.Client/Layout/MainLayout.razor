@@ -1,0 +1,48 @@
+@inherits LayoutComponentBase
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+@inject ILogVaultApiClient Api
+@implements IDisposable
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4 d-flex justify-content-between align-items-center">
+            <span>LogVault</span>
+            @if (Auth.IsAuthenticated)
+            {
+                <span>
+                    @Auth.CurrentUser?.DisplayName ?? Auth.CurrentUser?.Username
+                    &nbsp;|&nbsp;
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="Logout">Logout</button>
+                </span>
+            }
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        Auth.OnChange += StateHasChanged;
+        await Auth.InitializeAsync(Api);
+        if (!Auth.IsAuthenticated && !Nav.Uri.Contains("/login"))
+            Nav.NavigateTo("/login");
+    }
+
+    private async Task Logout()
+    {
+        await Api.LogoutAsync();
+        Auth.SetUser(null);
+        Nav.NavigateTo("/login");
+    }
+
+    public void Dispose() => Auth.OnChange -= StateHasChanged;
+}
