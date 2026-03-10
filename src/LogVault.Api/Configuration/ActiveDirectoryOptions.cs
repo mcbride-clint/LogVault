@@ -6,7 +6,6 @@ public class ActiveDirectoryOptions
 {
     public const string Section = "ActiveDirectory";
 
-    [Required(AllowEmptyStrings = false, ErrorMessage = "ActiveDirectory:Server must be configured.")]
     public string Server { get; set; } = "";
 
     [Range(1, 65535)]
