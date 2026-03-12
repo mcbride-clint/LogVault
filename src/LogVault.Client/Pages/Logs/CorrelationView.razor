@@ -1,0 +1,227 @@
+@page "/correlate/{TraceId}"
+@inject ILogVaultApiClient Api
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+
+<PageTitle>Correlation @TraceId — LogVault</PageTitle>
+
+<div class="d-flex align-center gap-2 mb-1">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/logs"))" Size="Size.Small" />
+    <MudText Typo="Typo.h5" Style="font-weight:700">Log Correlation</MudText>
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_data == null)
+{
+    <MudAlert Severity="Severity.Warning">Could not load correlation data for trace <strong>@TraceId</strong>.</MudAlert>
+}
+else if (_data.TraceEvents.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">No events found for trace ID <strong>@TraceId</strong>.</MudAlert>
+}
+else
+{
+    @* Summary bar *@
+    <MudPaper Elevation="1" Class="pa-3 mb-4 d-flex align-center gap-4" Style="border-radius:10px; flex-wrap:wrap">
+        <div>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Trace ID</MudText>
+            <MudText Typo="Typo.body2" Style="font-family:monospace; font-size:0.8rem">@TraceId</MudText>
+        </div>
+        <MudDivider Vertical="true" FlexItem="true" />
+        <div>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Trace Events</MudText>
+            <MudText Typo="Typo.body1" Style="font-weight:600">@_data.TraceEvents.Count</MudText>
+        </div>
+        <MudDivider Vertical="true" FlexItem="true" />
+        <div>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Applications</MudText>
+            <MudText Typo="Typo.body1" Style="font-weight:600">@_apps.Count</MudText>
+        </div>
+        <MudDivider Vertical="true" FlexItem="true" />
+        <div>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Time Range</MudText>
+            <MudText Typo="Typo.body2">
+                @_firstTs.ToLocalTime().ToString("HH:mm:ss.fff")
+                → @_lastTs.ToLocalTime().ToString("HH:mm:ss.fff")
+            </MudText>
+        </div>
+        <MudDivider Vertical="true" FlexItem="true" />
+        <div>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Context Window</MudText>
+            <MudText Typo="Typo.body2">±@_contextMinutes min</MudText>
+        </div>
+        <MudSpacer />
+        <MudButton Href="@($"/traces/{Uri.EscapeDataString(TraceId)}")"
+                   StartIcon="@Icons.Material.Filled.AccountTree"
+                   Variant="Variant.Outlined"
+                   Size="Size.Small">
+            Trace Waterfall
+        </MudButton>
+    </MudPaper>
+
+    @* Trace events waterfall *@
+    <MudText Typo="Typo.subtitle1" Class="mb-2" Style="font-weight:600">Trace Events (@_data.TraceEvents.Count)</MudText>
+    <MudPaper Elevation="2" Class="pa-0 mb-4" Style="border-radius:10px; overflow:hidden">
+        @foreach (var ev in _data.TraceEvents)
+        {
+            var offsetMs = (int)(ev.Timestamp - _firstTs).TotalMilliseconds;
+            var barWidth = _totalDurationMs > 0
+                ? (int)Math.Min(offsetMs / _totalDurationMs * 76 + 4, 80)
+                : 4;
+            var appColor = GetAppColor(ev.SourceApplication);
+            <div class="d-flex align-center gap-2 px-4 py-2 mud-ripple"
+                 style="border-bottom: 1px solid rgba(var(--mud-palette-lines-default-rgb), 0.15); cursor:pointer; border-left: 3px solid @appColor"
+                 @onclick="() => OpenDetail(ev)">
+                <div style="width:80px; flex-shrink:0">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="font-size:0.7rem">+@offsetMs ms</MudText>
+                    <div style="@($"height:3px; border-radius:2px; background:var(--mud-palette-lines-default); width:{barWidth}px")"></div>
+                </div>
+                <div style="width:80px; flex-shrink:0">
+                    <MudText Typo="Typo.caption" Style="font-size:0.75rem; opacity:0.7">
+                        @ev.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff")
+                    </MudText>
+                </div>
+                <div style="width:90px; flex-shrink:0">
+                    <LogLevelChip Level="@ev.Level" />
+                </div>
+                <div style="width:120px; flex-shrink:0">
+                    <MudText Typo="Typo.caption" Style="font-size:0.75rem; opacity:0.8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
+                        @(ev.SourceApplication ?? "—")
+                    </MudText>
+                </div>
+                <MudText Typo="Typo.body2" Style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
+                    @ev.RenderedMessage
+                </MudText>
+                @if (ev.Exception != null)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.BugReport" Size="Size.Small" Color="Color.Error" />
+                }
+            </div>
+        }
+    </MudPaper>
+
+    @* Context panels *@
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mt-4" PanelClass="pa-0">
+        <MudTabPanel Text="@($"Before ({_data.ContextBefore.Count})")">
+            @if (_data.ContextBefore.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info" Class="ma-2">No context events found before the trace window.</MudAlert>
+            }
+            else
+            {
+                <MudTable Items="_data.ContextBefore" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm"
+                          OnRowClick="@(args => OpenDetail(args.Item))" T="LogEventDto" RowClass="cursor-pointer">
+                    <HeaderContent>
+                        <MudTh>Time</MudTh>
+                        <MudTh>Level</MudTh>
+                        <MudTh>Application</MudTh>
+                        <MudTh>Message</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Time">
+                            <MudText Typo="Typo.caption" Style="font-family:monospace; white-space:nowrap">
+                                @context.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff")
+                            </MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Level"><LogLevelChip Level="@context.Level" /></MudTd>
+                        <MudTd DataLabel="Application">
+                            <span style="color:@GetAppColor(context.SourceApplication)">@(context.SourceApplication ?? "—")</span>
+                        </MudTd>
+                        <MudTd DataLabel="Message">
+                            <MudText Typo="Typo.body2" Style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:500px">
+                                @context.RenderedMessage
+                            </MudText>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudTabPanel>
+        <MudTabPanel Text="@($"After ({_data.ContextAfter.Count})")">
+            @if (_data.ContextAfter.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info" Class="ma-2">No context events found after the trace window.</MudAlert>
+            }
+            else
+            {
+                <MudTable Items="_data.ContextAfter" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm"
+                          OnRowClick="@(args => OpenDetail(args.Item))" T="LogEventDto" RowClass="cursor-pointer">
+                    <HeaderContent>
+                        <MudTh>Time</MudTh>
+                        <MudTh>Level</MudTh>
+                        <MudTh>Application</MudTh>
+                        <MudTh>Message</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Time">
+                            <MudText Typo="Typo.caption" Style="font-family:monospace; white-space:nowrap">
+                                @context.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff")
+                            </MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Level"><LogLevelChip Level="@context.Level" /></MudTd>
+                        <MudTd DataLabel="Application">
+                            <span style="color:@GetAppColor(context.SourceApplication)">@(context.SourceApplication ?? "—")</span>
+                        </MudTd>
+                        <MudTd DataLabel="Message">
+                            <MudText Typo="Typo.body2" Style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:500px">
+                                @context.RenderedMessage
+                            </MudText>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    [Parameter] public string TraceId { get; set; } = "";
+
+    private bool _loading = true;
+    private LogCorrelationDto? _data;
+    private DateTimeOffset _firstTs;
+    private DateTimeOffset _lastTs;
+    private double _totalDurationMs;
+    private List<string> _apps = [];
+    private int _contextMinutes = 5;
+
+    private static readonly string[] _palette =
+    [
+        "#1976D2", "#388E3C", "#F57C00", "#7B1FA2",
+        "#0097A7", "#C62828", "#558B2F", "#AD1457"
+    ];
+    private Dictionary<string, string> _appColors = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _data = await Api.GetCorrelationAsync(TraceId, _contextMinutes);
+        if (_data?.TraceEvents.Count > 0)
+        {
+            _firstTs = _data.TraceEvents.Min(e => e.Timestamp);
+            _lastTs = _data.TraceEvents.Max(e => e.Timestamp);
+            _totalDurationMs = (_lastTs - _firstTs).TotalMilliseconds;
+            _apps = _data.TraceEvents
+                .Where(e => e.SourceApplication != null)
+                .Select(e => e.SourceApplication!)
+                .Distinct()
+                .ToList();
+
+            var idx = 0;
+            foreach (var app in _apps)
+                _appColors[app] = _palette[idx++ % _palette.Length];
+        }
+        _loading = false;
+    }
+
+    private string GetAppColor(string? app)
+        => app != null && _appColors.TryGetValue(app, out var c) ? c : "#9E9E9E";
+
+    private async Task OpenDetail(LogEventDto ev)
+    {
+        var parameters = new DialogParameters<LogDetailDialog> { { x => x.Event, ev } };
+        await DialogService.ShowAsync<LogDetailDialog>("Event Detail", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+    }
+}

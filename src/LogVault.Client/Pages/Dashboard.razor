@@ -1,162 +1,221 @@
 @page "/dashboard"
 @page "/"
 @inject ILogVaultApiClient Api
+@inject ISnackbar Snackbar
 
 <PageTitle>Dashboard — LogVault</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-1" Style="font-weight:700">Dashboard</MudText>
-<MudText Typo="Typo.body2" Class="mud-text-secondary mb-6">Last 24 hours at a glance</MudText>
-
-@if (_loading)
+@if (_dashboard == null && _loading)
 {
+    <MudText Typo="Typo.h5" Class="mb-6" Style="font-weight:700">Dashboard</MudText>
     <MudGrid>
         @for (int i = 0; i < 4; i++)
         {
-            <MudItem xs="12" sm="6" md="3">
-                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="120px" Class="rounded-lg" />
+            <MudItem xs="12" sm="6">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="180px" Class="rounded-lg" />
             </MudItem>
         }
     </MudGrid>
 }
-else if (_stats != null)
+else if (_dashboard != null)
 {
-    @* Stat summary chips *@
-    <MudGrid Class="mb-6" Spacing="3">
-        @foreach (var lc in _stats.ByLevel.OrderByDescending(l => l.Count).Take(4))
+    <div class="d-flex align-center gap-2 mb-1">
+        <MudText Typo="Typo.h5" Style="font-weight:700">
+            @(_editingName ? "" : _dashboard.Name)
+        </MudText>
+        @if (_editingName)
         {
-            <MudItem xs="6" sm="3">
-                <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center" Style=@($"border-radius:12px; border-top: 3px solid (GetLevelHex(lc.Level))")>
-                    <MudText Typo="Typo.h4" Style=@($"font-weight:700; color:{GetLevelHex(lc.Level)}")>
-                        @lc.Count.ToString("N0")
-                    </MudText>
-                    <LogLevelChip Level="@lc.Level" />
-                </MudPaper>
+            <MudTextField @bind-Value="_nameInput" Variant="Variant.Outlined" Dense="true"
+                          Style="max-width:250px" Immediate="true" />
+            <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
+                           Size="Size.Small" OnClick="SaveName" />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                           OnClick="@(() => _editingName = false)" />
+        }
+        else
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           Class="mud-text-secondary" OnClick="@(() => { _nameInput = _dashboard.Name; _editingName = true; })" />
+        }
+        <MudSpacer />
+        @if (!_editMode)
+        {
+            <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Dashboard"
+                       OnClick="@(() => _editMode = true)">
+                Edit Widgets
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveWidgets">
+                Save
+            </MudButton>
+            <MudButton Variant="Variant.Text" Size="Size.Small"
+                       OnClick="@(() => _editMode = false)">
+                Cancel
+            </MudButton>
+        }
+    </div>
+    <MudText Typo="Typo.body2" Class="mud-text-secondary mb-6">
+        @(_editMode ? "Add, remove, or reorder widgets." : "Your personalized dashboard.")
+    </MudText>
+
+    @* Edit mode: widget manager *@
+    @if (_editMode)
+    {
+        <MudPaper Elevation="2" Class="pa-4 mb-4" Style="border-radius:12px">
+            <MudText Typo="Typo.subtitle2" Class="mb-3">Widget List</MudText>
+            @for (int i = 0; i < _editWidgets.Count; i++)
+            {
+                var idx = i;
+                var w = _editWidgets[idx];
+                <div class="d-flex align-center gap-2 mb-2">
+                    <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small"
+                                   Disabled="@(idx == 0)"
+                                   OnClick="@(() => MoveWidget(idx, -1))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small"
+                                   Disabled="@(idx == _editWidgets.Count - 1)"
+                                   OnClick="@(() => MoveWidget(idx, 1))" />
+                    <MudText Typo="Typo.body2" Style="flex:1">@w.Title <span style="opacity:0.5">(@w.WidgetType)</span></MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                   Color="Color.Error"
+                                   OnClick="@(() => _editWidgets.RemoveAt(idx))" />
+                </div>
+            }
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2">Add widget:</MudText>
+            <div class="d-flex gap-2 flex-wrap">
+                @foreach (var (type, label) in AvailableWidgetTypes)
+                {
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="@(() => AddWidget(type, label))">
+                        @label
+                    </MudButton>
+                }
+            </div>
+        </MudPaper>
+    }
+
+    @* Widget grid *@
+    <MudGrid Spacing="3">
+        @foreach (var widget in (_editMode ? _editWidgets : _dashboard.Widgets).OrderBy(w => w.SortOrder))
+        {
+            var cols = widget.WidgetType is "ErrorList" or "TopApplications" ? 12 : 6;
+            <MudItem xs="12" md="@cols">
+                @RenderWidget(widget)
             </MudItem>
         }
-    </MudGrid>
-
-    <MudGrid Spacing="3">
-        @* Events by level *@
-        <MudItem xs="12" md="5">
-            <MudPaper Elevation="2" Class="pa-4" Style="border-radius:12px">
-                <MudText Typo="Typo.subtitle1" Class="mb-3">Events by Level</MudText>
-                <MudTable Items="_stats.ByLevel" Dense="true" Hover="true" Elevation="0"
-                          Style="background:transparent">
-                    <HeaderContent>
-                        <MudTh>Level</MudTh>
-                        <MudTh Style="text-align:right">Count</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd><LogLevelChip Level="@context.Level" /></MudTd>
-                        <MudTd Style="text-align:right; font-weight:600">@context.Count.ToString("N0")</MudTd>
-                    </RowTemplate>
-                </MudTable>
-            </MudPaper>
-        </MudItem>
-
-        @* Hourly sparkline *@
-        <MudItem xs="12" md="7">
-            <MudPaper Elevation="2" Class="pa-4" Style="border-radius:12px">
-                <MudText Typo="Typo.subtitle1" Class="mb-3">Events per Hour (last 12h)</MudText>
-                @{
-                    var hours = _stats.ByHour.TakeLast(12).ToList();
-                    var maxCount = hours.Any() ? hours.Max(h => h.Count) : 1;
-                }
-                <div class="d-flex align-end gap-1" style="height:80px">
-                    @foreach (var h in hours)
-                    {
-                        var pct = maxCount > 0 ? (double)h.Count / maxCount * 100 : 0;
-                        <div class="d-flex flex-column align-center" style="flex:1">
-                            <MudTooltip Text="@($"{h.Hour.ToLocalTime():HH:mm}: {h.Count:N0} events")">
-                                <div style="width:100%; background:var(--mud-palette-primary); opacity:0.8;
-                                            border-radius:3px 3px 0 0; height:@(Math.Max(pct, 2))%;
-                                            min-height:3px; cursor:default">
-                                </div>
-                            </MudTooltip>
-                        </div>
-                    }
-                </div>
-                <div class="d-flex justify-space-between mt-1">
-                    @if (hours.Any())
-                    {
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@hours.First().Hour.ToLocalTime().ToString("HH:mm")</MudText>
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@hours.Last().Hour.ToLocalTime().ToString("HH:mm")</MudText>
-                    }
-                </div>
-            </MudPaper>
-        </MudItem>
-
-        @* Recent errors *@
-        <MudItem xs="12">
-            <MudPaper Elevation="2" Class="pa-4" Style="border-radius:12px">
-                <div class="d-flex justify-space-between align-center mb-3">
-                    <MudText Typo="Typo.subtitle1">Recent Errors</MudText>
-                    <MudButton Href="/logs" Variant="Variant.Text" Color="Color.Primary"
-                               EndIcon="@Icons.Material.Filled.ArrowForward" Size="Size.Small">
-                        View all
-                    </MudButton>
-                </div>
-                @if (_recentErrors?.Items.Count > 0)
-                {
-                    <MudTable Items="_recentErrors.Items" Dense="true" Hover="true" Elevation="0"
-                              Style="background:transparent">
-                        <HeaderContent>
-                            <MudTh>Time</MudTh>
-                            <MudTh>Application</MudTh>
-                            <MudTh>Message</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd Style="white-space:nowrap; font-size:0.8rem">
-                                @context.Timestamp.ToLocalTime().ToString("MM/dd HH:mm")
-                            </MudTd>
-                            <MudTd>
-                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
-                                    @context.SourceApplication
-                                </MudChip>
-                            </MudTd>
-                            <MudTd Style="font-size:0.825rem">@Truncate(context.RenderedMessage, 120)</MudTd>
-                        </RowTemplate>
-                    </MudTable>
-                }
-                else
-                {
-                    <MudAlert Severity="Severity.Success" Dense="true" Variant="Variant.Text">
-                        No errors in the last 24 hours.
-                    </MudAlert>
-                }
-            </MudPaper>
-        </MudItem>
     </MudGrid>
 }
 
 @code {
+    private DashboardDto? _dashboard;
     private bool _loading = true;
-    private LogStats? _stats;
-    private PagedResult<LogEventDto>? _recentErrors;
+    private bool _editMode;
+    private bool _editingName;
+    private string _nameInput = "";
+    private List<DashboardWidgetDto> _editWidgets = [];
+
+    private static readonly (string Type, string Label)[] AvailableWidgetTypes =
+    [
+        ("ByLevel",        "Events by Level"),
+        ("EventRate",      "Event Rate"),
+        ("ErrorList",      "Recent Errors"),
+        ("TopApplications","Top Applications"),
+    ];
 
     protected override async Task OnInitializedAsync()
     {
-        var now = DateTimeOffset.UtcNow;
-        var from = now.AddHours(-24);
-
-        _stats = await Api.GetStatsAsync(from, now);
-        _recentErrors = await Api.QueryLogsAsync(new LogQuery(
-            From: from, Level: "Error", Page: 1, PageSize: 20, Desc: true));
-
+        _dashboard = await Api.GetDefaultDashboardAsync();
         _loading = false;
     }
 
-    private static string GetLevelHex(string level) => level switch
+    private void StartEdit()
     {
-        "Fatal"       => "#37474F",
-        "Error"       => "#F44336",
-        "Warning"     => "#FF9800",
-        "Information" => "#03A9F4",
-        "Debug"       => "#9E9E9E",
-        "Verbose"     => "#BDBDBD",
-        _             => "#9E9E9E"
+        _editWidgets = [.. _dashboard!.Widgets.OrderBy(w => w.SortOrder)
+            .Select(w => new DashboardWidgetDto(w.Id, w.WidgetType, w.Title, w.SortOrder, w.ConfigJson))];
+        _editMode = true;
+    }
+
+    private void MoveWidget(int idx, int direction)
+    {
+        var newIdx = idx + direction;
+        if (newIdx < 0 || newIdx >= _editWidgets.Count) return;
+        (_editWidgets[idx], _editWidgets[newIdx]) = (_editWidgets[newIdx], _editWidgets[idx]);
+        for (int i = 0; i < _editWidgets.Count; i++)
+            _editWidgets[i] = _editWidgets[i] with { SortOrder = i };
+    }
+
+    private void AddWidget(string type, string label)
+    {
+        _editWidgets.Add(new DashboardWidgetDto(0, type, label, _editWidgets.Count, DefaultConfig(type)));
+    }
+
+    private async Task SaveWidgets()
+    {
+        var specs = _editWidgets.Select((w, i) => new WidgetSpecDto(w.WidgetType, w.Title, i, w.ConfigJson)).ToList();
+        var updated = await Api.UpdateDashboardWidgetsAsync(_dashboard!.Id, specs);
+        if (updated != null)
+        {
+            _dashboard = updated;
+            Snackbar.Add("Dashboard saved.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to save dashboard.", Severity.Error);
+        }
+        _editMode = false;
+    }
+
+    private async Task SaveName()
+    {
+        if (string.IsNullOrWhiteSpace(_nameInput)) return;
+        var updated = await Api.UpdateDashboardAsync(_dashboard!.Id, _nameInput, _dashboard.IsDefault);
+        if (updated != null) _dashboard = updated;
+        _editingName = false;
+    }
+
+    private static string DefaultConfig(string type) => type switch
+    {
+        "ByLevel"         => """{"hours":24}""",
+        "EventRate"       => """{"hours":12}""",
+        "ErrorList"       => """{"hours":24,"limit":20}""",
+        "TopApplications" => """{"hours":24,"limit":10}""",
+        _                 => "{}"
     };
 
-    private static string Truncate(string s, int max)
-        => s.Length <= max ? s : s[..max] + "…";
+    private RenderFragment RenderWidget(DashboardWidgetDto w) => w.WidgetType switch
+    {
+        "ByLevel"         => @<ByLevelWidget Title="@w.Title" Hours="@ParseHours(w.ConfigJson)" />,
+        "EventRate"       => @<EventRateWidget Title="@w.Title" Hours="@ParseHours(w.ConfigJson)" />,
+        "ErrorList"       => @<ErrorListWidget Title="@w.Title" Hours="@ParseHours(w.ConfigJson)" Limit="@ParseLimit(w.ConfigJson)" />,
+        "TopApplications" => @<TopApplicationsWidget Title="@w.Title" Hours="@ParseHours(w.ConfigJson)" Limit="@ParseLimit(w.ConfigJson)" />,
+        _                 => @<MudPaper Elevation="2" Class="pa-4" Style="border-radius:12px"><MudText>Unknown widget: @w.WidgetType</MudText></MudPaper>
+    };
+
+    private static int ParseHours(string configJson)
+    {
+        try
+        {
+            var doc = System.Text.Json.JsonDocument.Parse(configJson);
+            if (doc.RootElement.TryGetProperty("hours", out var h)) return h.GetInt32();
+        }
+        catch { }
+        return 24;
+    }
+
+    private static int ParseLimit(string configJson)
+    {
+        try
+        {
+            var doc = System.Text.Json.JsonDocument.Parse(configJson);
+            if (doc.RootElement.TryGetProperty("limit", out var l)) return l.GetInt32();
+        }
+        catch { }
+        return 20;
+    }
 }

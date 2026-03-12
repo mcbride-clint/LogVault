@@ -14,6 +14,8 @@ public class LogVaultDbContext : DbContext
     public DbSet<AlertFired> AlertsFired => Set<AlertFired>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
     public DbSet<SavedFilter> SavedFilters => Set<SavedFilter>();
+    public DbSet<Dashboard> Dashboards => Set<Dashboard>();
+    public DbSet<DashboardWidget> DashboardWidgets => Set<DashboardWidget>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

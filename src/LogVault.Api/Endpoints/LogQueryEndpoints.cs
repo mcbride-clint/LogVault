@@ -21,6 +21,8 @@ public static class LogQueryEndpoints
             string? prop,
             string? propValue,
             string? traceId,
+            string? fts,
+            string? propOp,
             int page = 1,
             int pageSize = 50,
             string sort = "Timestamp",
@@ -37,7 +39,10 @@ public static class LogQueryEndpoints
                 PropertyKey: prop, PropertyValue: propValue,
                 TraceId: traceId,
                 Page: page, PageSize: pageSize,
-                SortBy: sort, Descending: desc);
+                SortBy: sort, Descending: desc,
+                FullTextSearch: fts,
+                PropertyOp: Enum.TryParse<Domain.Models.PropertyFilterOp>(propOp, true, out var op)
+                    ? op : Domain.Models.PropertyFilterOp.Contains);
 
             var result = await repo.QueryAsync(query, ct);
             return Results.Ok(result);
@@ -48,6 +53,25 @@ public static class LogQueryEndpoints
             var ev = await repo.GetByIdAsync(id, ct);
             return ev is null ? Results.NotFound() : Results.Ok(ev);
         }).WithName("GetLogById").WithTags("Query");
+
+        group.MapGet("/trace/{traceId}", async (
+            string traceId,
+            ILogEventRepository repo,
+            CancellationToken ct) =>
+        {
+            var query = new LogEventQuery(
+                From: null, To: null,
+                MinLevel: null, MaxLevel: null,
+                SourceApplication: null, SourceEnvironment: null,
+                MessageContains: null, ExceptionContains: null,
+                PropertyKey: null, PropertyValue: null,
+                TraceId: traceId,
+                Page: 1, PageSize: 500,
+                SortBy: "Timestamp", Descending: false);
+
+            var result = await repo.QueryAsync(query, ct);
+            return Results.Ok(result.Items);
+        }).WithName("GetTrace").WithTags("Query");
 
         group.MapGet("/stats", async (
             ILogEventRepository repo,
@@ -60,6 +84,83 @@ public static class LogQueryEndpoints
             var stats = await repo.GetStatsAsync(f, t, ct);
             return Results.Ok(stats);
         }).WithName("GetStats").WithTags("Query");
+
+        group.MapGet("/stats/top-applications", async (
+            ILogEventRepository repo,
+            DateTimeOffset? from,
+            DateTimeOffset? to,
+            int limit = 10,
+            CancellationToken ct = default) =>
+        {
+            var f = from ?? DateTimeOffset.UtcNow.AddHours(-24);
+            var t = to ?? DateTimeOffset.UtcNow;
+            var results = await repo.GetTopApplicationsAsync(f, t, Math.Min(limit, 50), ct);
+            return Results.Ok(results);
+        }).WithName("GetTopApplications").WithTags("Query");
+
+        group.MapGet("/correlate", async (
+            string? traceId,
+            int contextMinutes = 5,
+            ILogEventRepository repo = default!,
+            CancellationToken ct = default) =>
+        {
+            if (string.IsNullOrEmpty(traceId))
+                return Results.BadRequest(new { error = "traceId is required" });
+
+            var traceQuery = new LogEventQuery(
+                From: null, To: null, MinLevel: null, MaxLevel: null,
+                SourceApplication: null, SourceEnvironment: null,
+                MessageContains: null, ExceptionContains: null,
+                PropertyKey: null, PropertyValue: null, TraceId: traceId,
+                Page: 1, PageSize: 500, SortBy: "Timestamp", Descending: false);
+            var traceResult = await repo.QueryAsync(traceQuery, ct);
+            var traceEvents = traceResult.Items;
+
+            if (traceEvents.Count == 0)
+                return Results.Ok(new { traceId, traceEvents, contextBefore = new List<object>(), contextAfter = new List<object>() });
+
+            var firstTs = traceEvents.Min(e => e.Timestamp);
+            var lastTs = traceEvents.Max(e => e.Timestamp);
+            var windowBefore = firstTs.AddMinutes(-Math.Max(1, contextMinutes));
+            var windowAfter = lastTs.AddMinutes(Math.Max(1, contextMinutes));
+
+            var apps = traceEvents
+                .Where(e => e.SourceApplication != null)
+                .Select(e => e.SourceApplication!)
+                .Distinct()
+                .ToList();
+
+            var contextBefore = new List<Domain.Entities.LogEvent>();
+            var contextAfter = new List<Domain.Entities.LogEvent>();
+
+            foreach (var appName in apps)
+            {
+                var beforeQuery = new LogEventQuery(
+                    From: windowBefore, To: firstTs,
+                    MinLevel: null, MaxLevel: null,
+                    SourceApplication: appName, SourceEnvironment: null,
+                    MessageContains: null, ExceptionContains: null,
+                    PropertyKey: null, PropertyValue: null, TraceId: null,
+                    Page: 1, PageSize: 100, SortBy: "Timestamp", Descending: true);
+                var beforeResult = await repo.QueryAsync(beforeQuery, ct);
+                contextBefore.AddRange(beforeResult.Items.Where(e => e.TraceId != traceId));
+
+                var afterQuery = new LogEventQuery(
+                    From: lastTs, To: windowAfter,
+                    MinLevel: null, MaxLevel: null,
+                    SourceApplication: appName, SourceEnvironment: null,
+                    MessageContains: null, ExceptionContains: null,
+                    PropertyKey: null, PropertyValue: null, TraceId: null,
+                    Page: 1, PageSize: 100, SortBy: "Timestamp", Descending: false);
+                var afterResult = await repo.QueryAsync(afterQuery, ct);
+                contextAfter.AddRange(afterResult.Items.Where(e => e.TraceId != traceId));
+            }
+
+            var sortedBefore = contextBefore.OrderByDescending(e => e.Timestamp).Take(100).ToList();
+            var sortedAfter = contextAfter.OrderBy(e => e.Timestamp).Take(100).ToList();
+
+            return Results.Ok(new { traceId, traceEvents, contextBefore = sortedBefore, contextAfter = sortedAfter });
+        }).WithName("GetCorrelation").WithTags("Query");
 
         group.MapGet("/export", async (
             HttpContext ctx,

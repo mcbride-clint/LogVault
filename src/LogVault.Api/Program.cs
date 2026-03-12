@@ -134,6 +134,7 @@ app.MapAlertEndpoints();
 app.MapAdminEndpoints();
 app.MapAuthEndpoints();
 app.MapSavedFilterEndpoints();
+app.MapDashboardEndpoints();
 
 app.MapFallbackToFile("index.html");
 

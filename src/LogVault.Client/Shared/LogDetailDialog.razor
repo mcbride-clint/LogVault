@@ -1,6 +1,7 @@
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
 @inject IDialogService DialogService
+@inject NavigationManager Nav
 
 <MudDialog>
     <TitleContent>
@@ -40,7 +41,17 @@
             {
                 <MudItem xs="12" sm="4"><MudText Typo="Typo.caption" Class="mud-text-secondary">Trace ID</MudText></MudItem>
                 <MudItem xs="12" sm="8">
-                    <MudText Typo="Typo.body2" Style="font-family:monospace">@Event.TraceId</MudText>
+                    <MudLink Href="@($"/traces/{Uri.EscapeDataString(Event.TraceId)}")"
+                             Typo="Typo.body2" Style="font-family:monospace"
+                             OnClick="Close">@Event.TraceId</MudLink>
+                </MudItem>
+            }
+
+            @if (Event.SpanId != null)
+            {
+                <MudItem xs="12" sm="4"><MudText Typo="Typo.caption" Class="mud-text-secondary">Span ID</MudText></MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudText Typo="Typo.body2" Style="font-family:monospace">@Event.SpanId</MudText>
                 </MudItem>
             }
 
@@ -76,6 +87,16 @@
                    StartIcon="@Icons.Material.Filled.AddAlert">
             Create Alert
         </MudButton>
+        @if (Event.TraceId != null)
+        {
+            <MudButton Href="@($"/correlate/{Uri.EscapeDataString(Event.TraceId)}")"
+                       Variant="Variant.Outlined"
+                       Color="Color.Info"
+                       StartIcon="@Icons.Material.Filled.Hub"
+                       OnClick="Close">
+                View Correlation
+            </MudButton>
+        }
         <MudSpacer />
         <MudButton OnClick="Close" Variant="Variant.Text">Close</MudButton>
     </DialogActions>

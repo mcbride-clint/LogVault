@@ -120,6 +120,58 @@ public class LogVaultApiClient : ILogVaultApiClient
         return await resp.Content.ReadFromJsonAsync<PurgeResult>(_opts);
     }
 
+    public async Task<List<LogEventDto>?> GetTraceAsync(string traceId)
+    {
+        try { return await _http.GetFromJsonAsync<List<LogEventDto>>($"/api/logs/trace/{Uri.EscapeDataString(traceId)}", _opts); }
+        catch { return null; }
+    }
+
+    public async Task<List<AppCountDto>?> GetTopApplicationsAsync(DateTimeOffset? from = null, DateTimeOffset? to = null, int limit = 10)
+    {
+        var sb = new StringBuilder("/api/logs/stats/top-applications?");
+        if (from.HasValue) sb.Append($"from={Uri.EscapeDataString(from.Value.ToString("o"))}&");
+        if (to.HasValue) sb.Append($"to={Uri.EscapeDataString(to.Value.ToString("o"))}&");
+        sb.Append($"limit={limit}");
+        try { return await _http.GetFromJsonAsync<List<AppCountDto>>(sb.ToString(), _opts); }
+        catch { return null; }
+    }
+
+    public async Task<DashboardDto?> GetDefaultDashboardAsync()
+    {
+        try { return await _http.GetFromJsonAsync<DashboardDto>("/api/dashboards/default", _opts); }
+        catch { return null; }
+    }
+
+    public async Task<List<DashboardDto>?> GetDashboardsAsync()
+    {
+        try { return await _http.GetFromJsonAsync<List<DashboardDto>>("/api/dashboards", _opts); }
+        catch { return null; }
+    }
+
+    public async Task<DashboardDto?> CreateDashboardAsync(string name, bool isDefault)
+    {
+        var resp = await _http.PostAsJsonAsync("/api/dashboards", new { name, isDefault });
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<DashboardDto>(_opts);
+    }
+
+    public async Task<DashboardDto?> UpdateDashboardAsync(int id, string name, bool isDefault)
+    {
+        var resp = await _http.PutAsJsonAsync($"/api/dashboards/{id}", new { name, isDefault });
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<DashboardDto>(_opts);
+    }
+
+    public Task DeleteDashboardAsync(int id) => _http.DeleteAsync($"/api/dashboards/{id}");
+
+    public async Task<DashboardDto?> UpdateDashboardWidgetsAsync(int id, List<WidgetSpecDto> widgets)
+    {
+        var body = new { widgets = widgets.Select(w => new { w.WidgetType, w.Title, w.SortOrder, w.ConfigJson }).ToList() };
+        var resp = await _http.PutAsJsonAsync($"/api/dashboards/{id}/widgets", body);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<DashboardDto>(_opts);
+    }
+
     public async Task<List<SavedFilterDto>?> GetSavedFiltersAsync()
     {
         try { return await _http.GetFromJsonAsync<List<SavedFilterDto>>("/api/savedfilters", _opts); }
@@ -150,6 +202,23 @@ public class LogVaultApiClient : ILogVaultApiClient
 
     public Task DeleteSavedFilterAsync(int id) => _http.DeleteAsync($"/api/savedfilters/{id}");
 
+    public async Task<SavedFilterDto?> PinSavedFilterAsync(int id)
+    {
+        try
+        {
+            var resp = await _http.PatchAsync($"/api/savedfilters/{id}/pin", null);
+            if (!resp.IsSuccessStatusCode) return null;
+            return await resp.Content.ReadFromJsonAsync<SavedFilterDto>(_opts);
+        }
+        catch { return null; }
+    }
+
+    public async Task<LogCorrelationDto?> GetCorrelationAsync(string traceId, int contextMinutes = 5)
+    {
+        try { return await _http.GetFromJsonAsync<LogCorrelationDto>($"/api/logs/correlate?traceId={Uri.EscapeDataString(traceId)}&contextMinutes={contextMinutes}", _opts); }
+        catch { return null; }
+    }
+
     private static string BuildQueryUrl(string base_, LogQuery q)
     {
         var sb = new StringBuilder(base_).Append('?');
@@ -162,6 +231,8 @@ public class LogVaultApiClient : ILogVaultApiClient
         if (!string.IsNullOrEmpty(q.TraceId)) sb.Append($"traceId={Uri.EscapeDataString(q.TraceId)}&");
         if (!string.IsNullOrEmpty(q.Prop)) sb.Append($"prop={Uri.EscapeDataString(q.Prop)}&");
         if (!string.IsNullOrEmpty(q.PropValue)) sb.Append($"propValue={Uri.EscapeDataString(q.PropValue)}&");
+        if (!string.IsNullOrEmpty(q.Fts)) sb.Append($"fts={Uri.EscapeDataString(q.Fts)}&");
+        if (!string.IsNullOrEmpty(q.PropOp)) sb.Append($"propOp={Uri.EscapeDataString(q.PropOp)}&");
         sb.Append($"page={q.Page}&pageSize={q.PageSize}&desc={q.Desc}");
         return sb.ToString();
     }

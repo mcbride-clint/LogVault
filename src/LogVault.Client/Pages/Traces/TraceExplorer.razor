@@ -1,0 +1,177 @@
+@page "/traces/{TraceId}"
+@inject ILogVaultApiClient Api
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+
+<PageTitle>Trace @TraceId — LogVault</PageTitle>
+
+<div class="d-flex align-center gap-2 mb-1">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/logs"))" Size="Size.Small" />
+    <MudText Typo="Typo.h5" Style="font-weight:700">Trace Explorer</MudText>
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_events == null || _events.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">No events found for trace ID <strong>@TraceId</strong>.</MudAlert>
+}
+else
+{
+    @* Summary bar *@
+    <MudPaper Elevation="1" Class="pa-3 mb-4 d-flex align-center gap-4" Style="border-radius:10px; flex-wrap:wrap">
+        <div>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Trace ID</MudText>
+            <MudText Typo="Typo.body2" Style="font-family:monospace; font-size:0.8rem">@TraceId</MudText>
+        </div>
+        <MudDivider Vertical="true" FlexItem="true" />
+        <div>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Events</MudText>
+            <MudText Typo="Typo.body1" Style="font-weight:600">@_events.Count</MudText>
+        </div>
+        <MudDivider Vertical="true" FlexItem="true" />
+        <div>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Spans</MudText>
+            <MudText Typo="Typo.body1" Style="font-weight:600">@_spanGroups.Count</MudText>
+        </div>
+        <MudDivider Vertical="true" FlexItem="true" />
+        <div>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Duration</MudText>
+            <MudText Typo="Typo.body1" Style="font-weight:600">@FormatDuration(_totalDurationMs)</MudText>
+        </div>
+        <MudDivider Vertical="true" FlexItem="true" />
+        <div>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Time range</MudText>
+            <MudText Typo="Typo.body2">
+                @_firstTimestamp.ToLocalTime().ToString("HH:mm:ss.fff")
+                → @_lastTimestamp.ToLocalTime().ToString("HH:mm:ss.fff")
+            </MudText>
+        </div>
+        <MudSpacer />
+        <MudButton Href="@($"/correlate/{Uri.EscapeDataString(TraceId)}")"
+                   StartIcon="@Icons.Material.Filled.Hub"
+                   Variant="Variant.Outlined"
+                   Color="Color.Info"
+                   Size="Size.Small">
+            View Correlation
+        </MudButton>
+    </MudPaper>
+
+    @* Waterfall timeline *@
+    <MudPaper Elevation="2" Class="pa-0" Style="border-radius:10px; overflow:hidden">
+        @foreach (var group in _spanGroups)
+        {
+            @* Span header *@
+            <div class="d-flex align-center gap-2 px-4 py-2"
+                 style="background: rgba(var(--mud-palette-primary-rgb), 0.08); border-bottom: 1px solid rgba(var(--mud-palette-lines-default-rgb), 0.3)">
+                <MudIcon Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small" Class="mud-text-secondary" />
+                <MudText Typo="Typo.caption" Style="font-family:monospace; font-weight:600">
+                    @(group.SpanId ?? "(no span)")
+                </MudText>
+                @if (group.Application != null)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Class="ml-1">
+                        @group.Application
+                    </MudChip>
+                }
+                <MudSpacer />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@group.Events.Count event(s)</MudText>
+            </div>
+
+            @* Events in this span *@
+            @foreach (var ev in group.Events)
+            {
+                var offsetMs = (int)(ev.Timestamp - _firstTimestamp).TotalMilliseconds;
+                var barWidth = _totalDurationMs > 0
+                    ? (int)Math.Min(offsetMs / _totalDurationMs * 76 + 4, 80)
+                    : 4;
+                <div class="d-flex align-center gap-2 px-4 py-2 mud-ripple"
+                     style="border-bottom: 1px solid rgba(var(--mud-palette-lines-default-rgb), 0.15); cursor:pointer"
+                     @onclick="() => OpenDetail(ev)">
+                    @* Timeline offset indicator *@
+                    <div style="width:80px; flex-shrink:0">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="font-size:0.7rem">
+                            +@offsetMs ms
+                        </MudText>
+                        <div style="@($"height:3px; border-radius:2px; background:var(--mud-palette-lines-default); width:{barWidth}px")">
+                        </div>
+                    </div>
+
+                    <div style="width:80px; flex-shrink:0">
+                        <MudText Typo="Typo.caption" Style="font-size:0.75rem; opacity:0.7">
+                            @ev.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff")
+                        </MudText>
+                    </div>
+
+                    <div style="width:90px; flex-shrink:0">
+                        <LogLevelChip Level="@ev.Level" />
+                    </div>
+
+                    <MudText Typo="Typo.body2" Style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
+                        @ev.RenderedMessage
+                    </MudText>
+
+                    @if (ev.Exception != null)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.BugReport" Size="Size.Small" Color="Color.Error"
+                                 title="Has exception" />
+                    }
+                </div>
+            }
+        }
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public string TraceId { get; set; } = "";
+
+    private bool _loading = true;
+    private List<LogEventDto>? _events;
+    private List<TraceSpanGroup> _spanGroups = [];
+    private DateTimeOffset _firstTimestamp;
+    private DateTimeOffset _lastTimestamp;
+    private double _totalDurationMs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _events = await Api.GetTraceAsync(TraceId);
+        if (_events?.Count > 0)
+        {
+            _firstTimestamp = _events.Min(e => e.Timestamp);
+            _lastTimestamp = _events.Max(e => e.Timestamp);
+            _totalDurationMs = (_lastTimestamp - _firstTimestamp).TotalMilliseconds;
+
+            // Group by SpanId, preserving first-seen order
+            var grouped = new Dictionary<string, TraceSpanGroup>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ev in _events)
+            {
+                var key = ev.SpanId ?? "";
+                if (!grouped.TryGetValue(key, out var group))
+                {
+                    group = new TraceSpanGroup(ev.SpanId, ev.SourceApplication);
+                    grouped[key] = group;
+                    _spanGroups.Add(group);
+                }
+                group.Events.Add(ev);
+            }
+        }
+        _loading = false;
+    }
+
+    private async Task OpenDetail(LogEventDto ev)
+    {
+        var parameters = new DialogParameters<LogDetailDialog> { { x => x.Event, ev } };
+        await DialogService.ShowAsync<LogDetailDialog>("Event Detail", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+    }
+
+    private static string FormatDuration(double ms)
+    {
+        if (ms < 1) return "~0ms";
+        if (ms < 1000) return $"{(int)ms}ms";
+        if (ms < 60000) return $"{ms / 1000:F2}s";
+        return $"{ms / 60000:F1}m";
+    }
+}

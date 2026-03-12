@@ -9,3 +9,4 @@ public record LogStats(
 
 public record LevelCount(LogLevel Level, int Count);
 public record HourlyCount(DateTimeOffset Hour, int Count);
+public record AppCount(string Application, int Count);

@@ -56,6 +56,19 @@ public static class SavedFilterEndpoints
             return Results.NoContent();
         }).WithName("DeleteSavedFilter").WithTags("SavedFilters");
 
+        group.MapPatch("/{id:int}/pin", async (int id, HttpContext ctx,
+            ISavedFilterRepository repo, CancellationToken ct) =>
+        {
+            var ownerId = ctx.User.Identity?.Name ?? "";
+            var existing = await repo.GetByIdAsync(id, ct);
+            if (existing == null || existing.OwnerId != ownerId)
+                return Results.NotFound();
+
+            existing.IsPinned = !existing.IsPinned;
+            await repo.UpsertAsync(existing, ct);
+            return Results.Ok(new SavedFilterDto(existing));
+        }).WithName("TogglePinSavedFilter").WithTags("SavedFilters");
+
         return app;
     }
 }
@@ -63,7 +76,7 @@ public static class SavedFilterEndpoints
 public record SavedFilterRequest(string Name, string FilterJson);
 
 public record SavedFilterDto(int Id, string Name, string OwnerId, string FilterJson,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
+    bool IsPinned, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
 {
-    public SavedFilterDto(SavedFilter f) : this(f.Id, f.Name, f.OwnerId, f.FilterJson, f.CreatedAt, f.UpdatedAt) { }
+    public SavedFilterDto(SavedFilter f) : this(f.Id, f.Name, f.OwnerId, f.FilterJson, f.IsPinned, f.CreatedAt, f.UpdatedAt) { }
 }

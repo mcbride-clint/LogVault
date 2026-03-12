@@ -29,6 +29,12 @@ public class LogIngestionService : ILogIngestionService
         return await IngestEventsAsync(events, context, ct);
     }
 
+    public async Task<int> IngestOtlpJsonAsync(string jsonPayload, IngestContext context, CancellationToken ct = default)
+    {
+        var events = OtlpPayloadParser.ParseJson(jsonPayload);
+        return await IngestEventsAsync(events, context, ct);
+    }
+
     public async Task<int> IngestClefStreamAsync(Stream clefStream, IngestContext context, CancellationToken ct = default)
     {
         var events = SerilogPayloadParser.ParseClef(clefStream);

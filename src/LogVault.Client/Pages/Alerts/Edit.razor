@@ -102,7 +102,29 @@ else
                 <MudSwitch @bind-Value="_enabled"
                            Color="Color.Primary"
                            Label="@(_enabled ? "Rule Enabled" : "Rule Disabled")"
-                           Class="mb-2" />
+                           Class="mb-6" />
+
+                <MudDivider Class="mb-4" />
+                <MudText Typo="Typo.subtitle2" Class="mb-3">Webhook Notification (optional)</MudText>
+
+                <MudTextField @bind-Value="_webhookUrl"
+                              Label="Webhook URL"
+                              Variant="Variant.Outlined"
+                              Class="mb-3"
+                              Placeholder="https://hooks.slack.com/services/..."
+                              Clearable="true"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Webhook"
+                              HelperText="Leave blank to disable webhooks" />
+
+                <MudSelect T="string" @bind-Value="_webhookFormat"
+                           Label="Webhook Format"
+                           Variant="Variant.Outlined"
+                           Disabled="@string.IsNullOrEmpty(_webhookUrl)">
+                    <MudSelectItem Value='"Generic"'>Generic JSON</MudSelectItem>
+                    <MudSelectItem Value='"Slack"'>Slack (Incoming Webhook)</MudSelectItem>
+                    <MudSelectItem Value='"Teams"'>Microsoft Teams</MudSelectItem>
+                </MudSelect>
             </MudPaper>
         </MudItem>
 
@@ -178,6 +200,8 @@ else
     private int _throttle = 60;
     private List<string> _recipients = new();
     private bool _enabled = true;
+    private string _webhookUrl = "";
+    private string _webhookFormat = "Generic";
     private bool _loading = true;
     private bool _saving;
     private string? _error;
@@ -198,6 +222,8 @@ else
                 _throttle = rule.ThrottleMinutes;
                 _recipients = new(rule.RecipientEmails);
                 _enabled = rule.IsEnabled;
+                _webhookUrl = rule.WebhookUrl ?? "";
+                _webhookFormat = rule.WebhookFormat;
             }
         }
         _loading = false;
@@ -218,7 +244,9 @@ else
                 _name, _expr, _level,
                 string.IsNullOrEmpty(_appFilter) ? null : _appFilter,
                 _throttle, _enabled,
-                _recipients.Where(r => !string.IsNullOrWhiteSpace(r)).ToList());
+                _recipients.Where(r => !string.IsNullOrWhiteSpace(r)).ToList(),
+                WebhookUrl: string.IsNullOrEmpty(_webhookUrl) ? null : _webhookUrl,
+                WebhookFormat: _webhookFormat);
 
             AlertRuleDto? result;
             if (Id == 0)

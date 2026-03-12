@@ -112,6 +112,8 @@ public static class AlertEndpoints
         SourceApplicationFilter = r.SourceApplicationFilter,
         ThrottleMinutes = r.ThrottleMinutes,
         IsEnabled = r.IsEnabled,
+        WebhookUrl = r.WebhookUrl,
+        WebhookFormat = r.WebhookFormat,
         Recipients = r.RecipientEmails.Select(e => new AlertRecipient { Email = e }).ToList()
     };
 }
@@ -123,6 +125,8 @@ public record AlertRuleRequest(
     string? SourceApplicationFilter,
     int ThrottleMinutes,
     bool IsEnabled,
-    List<string> RecipientEmails);
+    List<string> RecipientEmails,
+    string? WebhookUrl = null,
+    Domain.Entities.WebhookFormat WebhookFormat = Domain.Entities.WebhookFormat.Generic);
 
 public record TestExpressionRequest(string Expression);

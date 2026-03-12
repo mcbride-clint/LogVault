@@ -10,6 +10,7 @@ public class AlertEvaluationService : IAlertEvaluationService
     private readonly IAlertRuleRepository _alertRules;
     private readonly IAlertFiredRepository _alertFired;
     private readonly IAlertEmailService _emailService;
+    private readonly IWebhookNotificationService _webhookService;
     private readonly AlertRuleExpressionCache _cache;
     private readonly ILogger<AlertEvaluationService> _logger;
 
@@ -17,12 +18,14 @@ public class AlertEvaluationService : IAlertEvaluationService
         IAlertRuleRepository alertRules,
         IAlertFiredRepository alertFired,
         IAlertEmailService emailService,
+        IWebhookNotificationService webhookService,
         AlertRuleExpressionCache cache,
         ILogger<AlertEvaluationService> logger)
     {
         _alertRules = alertRules;
         _alertFired = alertFired;
         _emailService = emailService;
+        _webhookService = webhookService;
         _cache = cache;
         _logger = logger;
     }
@@ -88,6 +91,15 @@ public class AlertEvaluationService : IAlertEvaluationService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send alert email for rule {RuleId}", rule.Id);
+            }
+
+            try
+            {
+                await _webhookService.SendAsync(rule, ev, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send webhook for rule {RuleId}", rule.Id);
             }
         }
         catch (Exception ex)

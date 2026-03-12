@@ -1,7 +1,9 @@
 using LogVault.Domain.Repositories;
+using LogVault.Domain.Services;
 using LogVault.Infrastructure.Data;
 using LogVault.Infrastructure.HealthChecks;
 using LogVault.Infrastructure.Repositories;
+using LogVault.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +33,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAlertFiredRepository, EfAlertFiredRepository>();
         services.AddScoped<IApiKeyRepository, EfApiKeyRepository>();
         services.AddScoped<ISavedFilterRepository, EfSavedFilterRepository>();
+        services.AddScoped<IDashboardRepository, EfDashboardRepository>();
+
+        services.AddHttpClient("webhook");
+        services.AddScoped<IWebhookNotificationService, HttpWebhookNotificationService>();
 
         services.AddTransient<SmtpHealthCheck>();
 

@@ -79,6 +79,19 @@ public class EfLogEventRepository : ILogEventRepository
         return new LogStats(byLevel, hourlyList);
     }
 
+    public async Task<IReadOnlyList<AppCount>> GetTopApplicationsAsync(DateTimeOffset from, DateTimeOffset to, int limit, CancellationToken ct = default)
+    {
+        var rows = await _db.LogEvents
+            .Where(e => e.Timestamp >= from && e.Timestamp <= to && e.SourceApplication != null)
+            .GroupBy(e => e.SourceApplication!)
+            .Select(g => new { App = g.Key, Count = g.Count() })
+            .OrderByDescending(a => a.Count)
+            .Take(limit)
+            .ToListAsync(ct);
+
+        return rows.Select(r => new AppCount(r.App, r.Count)).ToList();
+    }
+
     public async Task<IReadOnlyList<string>> GetDistinctApplicationsAsync(CancellationToken ct = default)
         => await _db.LogEvents
             .Where(e => e.SourceApplication != null)
@@ -106,9 +119,44 @@ public class EfLogEventRepository : ILogEventRepository
         if (!string.IsNullOrEmpty(query.TraceId))
             q = q.Where(e => e.TraceId == query.TraceId);
         if (!string.IsNullOrEmpty(query.PropertyKey))
-            q = q.Where(e => e.PropertiesJson.Contains("\"" + query.PropertyKey + "\""));
-        if (!string.IsNullOrEmpty(query.PropertyValue))
-            q = q.Where(e => e.PropertiesJson.Contains(query.PropertyValue));
+        {
+            var key = query.PropertyKey;
+            var val = query.PropertyValue ?? "";
+            switch (query.PropertyOp)
+            {
+                case Domain.Models.PropertyFilterOp.Equals:
+                    q = q.Where(e =>
+                        EF.Functions.Like(e.PropertiesJson, $"%\"{key}\":\"{val}\"%") ||
+                        EF.Functions.Like(e.PropertiesJson, $"%\"{key}\":{val},%") ||
+                        EF.Functions.Like(e.PropertiesJson, $"%\"{key}\":{val}}}%"));
+                    break;
+                case Domain.Models.PropertyFilterOp.NotEquals:
+                    q = q.Where(e =>
+                        !EF.Functions.Like(e.PropertiesJson, $"%\"{key}\":\"{val}\"%") &&
+                        !EF.Functions.Like(e.PropertiesJson, $"%\"{key}\":{val},%") &&
+                        !EF.Functions.Like(e.PropertiesJson, $"%\"{key}\":{val}}}%") &&
+                        e.PropertiesJson.Contains($"\"{key}\""));
+                    break;
+                case Domain.Models.PropertyFilterOp.Contains:
+                default:
+                    q = q.Where(e => e.PropertiesJson.Contains($"\"{key}\""));
+                    if (!string.IsNullOrEmpty(val))
+                        q = q.Where(e => e.PropertiesJson.Contains(val));
+                    break;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(query.FullTextSearch))
+        {
+            foreach (var term in query.FullTextSearch.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var t = term;
+                q = q.Where(e =>
+                    e.RenderedMessage.Contains(t) ||
+                    (e.Exception != null && e.Exception.Contains(t)) ||
+                    e.PropertiesJson.Contains(t));
+            }
+        }
 
         return q;
     }

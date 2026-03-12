@@ -4,10 +4,15 @@ A self-hosted log ingestion, query, and alerting platform built on ASP.NET Core 
 
 ## Features
 
-- **Multiple ingestion formats** — Serilog JSON, CLEF (Compact Log Event Format), IIS W3C logs, and plain text
+- **Multiple ingestion formats** — Serilog JSON, CLEF (Compact Log Event Format), IIS W3C logs, plain text, and OTLP/HTTP (OpenTelemetry)
 - **Real-time log tail** — Live streaming via SignalR with per-client filters
-- **Alerting** — Rule-based alerts with custom filter expressions, throttling, and email notifications
+- **Full-text search** — Single search box that matches across message, exception, and all structured properties (multi-term AND logic)
+- **Structured property filtering** — Filter by property key/value with Contains, Equals, or Not Equals operators
+- **Alerting** — Rule-based alerts with custom filter expressions, throttling, email notifications, and webhook delivery (Generic, Slack, Teams)
+- **Saved & pinned filters** — Save query state as named filters; pin favourites to appear as one-click chips in the filter panel
+- **Log correlation view** — For any trace ID, see the full trace waterfall plus before/after context events from the same applications
 - **Export** — Download query results as CSV or JSON
+- **Dashboards** — Configurable widget-based dashboards (log volume, top applications, recent errors, etc.)
 - **API Key auth** — Programmatic ingestion without user credentials
 - **Active Directory integration** — LDAP-backed login with group-based Admin/User roles
 - **Retention** — Automatic or manual purge of old log events
@@ -20,7 +25,7 @@ A self-hosted log ingestion, query, and alerting platform built on ASP.NET Core 
 ```
 src/
   LogVault.Domain/             # Entities, interfaces — no external dependencies
-  LogVault.Infrastructure/     # EF Core + SQLite, LDAP auth, health checks
+  LogVault.Infrastructure/     # EF Core + SQLite, LDAP auth, health checks, webhooks
   LogVault.Infrastructure.Mail/# MailKit SMTP for alert emails
   LogVault.Application/        # Parsers, ingestion worker, retention, alert engine
   LogVault.Api/                # ASP.NET Core minimal API, SignalR hub, Blazor host
@@ -227,10 +232,11 @@ All ingestion endpoints accept either a valid cookie session or an `X-Api-Key` h
 | `POST` | `/api/ingest/serilog` | JSON array of Serilog event objects |
 | `POST` | `/api/ingest/clef` | Newline-delimited CLEF stream |
 | `POST` | `/api/ingest/file` | Multipart file upload |
+| `POST` | `/v1/logs` | OTLP/HTTP JSON (OpenTelemetry) |
 
 File upload query parameters: `format` (IIS \| Clef \| SerilogJson \| PlainText), `application`, `environment`.
 
-All return `202 Accepted` with an event count.
+Serilog and CLEF endpoints return `202 Accepted` with an event count. The OTLP endpoint returns `200 OK` with an empty JSON body per the OTLP spec. Binary protobuf (`application/x-protobuf`) returns `415 Unsupported Media Type`.
 
 **Example — Serilog sink:**
 ```json
@@ -248,6 +254,34 @@ X-Api-Key: lv_xxxxxxxxxxxxxxxx
 ]
 ```
 
+**Example — OTLP/HTTP (OpenTelemetry):**
+
+Configure your .NET app's OpenTelemetry exporter to target `http://your-logvault-host/v1/logs` with content type `application/json`. The endpoint accepts the standard OTLP JSON payload and maps `service.name` to `SourceApplication`, severity to log level, and trace/span IDs to the correlation fields.
+
+```json
+POST /v1/logs
+Content-Type: application/json
+X-Api-Key: lv_xxxxxxxxxxxxxxxx
+
+{
+  "resourceLogs": [{
+    "resource": {
+      "attributes": [{ "key": "service.name", "value": { "stringValue": "MyApi" } }]
+    },
+    "scopeLogs": [{
+      "logRecords": [{
+        "timeUnixNano": "1741694400000000000",
+        "severityNumber": 9,
+        "severityText": "INFO",
+        "body": { "stringValue": "Request completed in 42ms" },
+        "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+        "spanId": "00f067aa0ba902b7"
+      }]
+    }]
+  }]
+}
+```
+
 ### Log Query
 
 Requires `User` or `Admin` role.
@@ -256,7 +290,10 @@ Requires `User` or `Admin` role.
 |--------|------|-------------|
 | `GET` | `/api/logs` | Paginated query |
 | `GET` | `/api/logs/{id}` | Single event by ID |
+| `GET` | `/api/logs/trace/{traceId}` | All events for a trace ID |
+| `GET` | `/api/logs/correlate` | Trace events plus surrounding context |
 | `GET` | `/api/logs/stats` | Level and hourly breakdown |
+| `GET` | `/api/logs/stats/top-applications` | Top N applications by event count |
 | `GET` | `/api/logs/export` | Download CSV or JSON |
 
 **Query parameters for `/api/logs`:**
@@ -266,12 +303,38 @@ Requires `User` or `Admin` role.
 | `from` / `to` | ISO 8601 datetime range |
 | `level` | Minimum level (Verbose, Debug, Information, Warning, Error, Fatal) |
 | `maxLevel` | Maximum level |
-| `app` | Source application filter |
+| `app` | Source application filter (substring match) |
 | `env` | Source environment filter |
 | `q` | Message text search |
-| `traceId` | Filter by trace ID |
+| `fts` | Full-text search across message, exception, and properties (space-separated terms are ANDed) |
+| `traceId` | Filter by trace ID (exact match) |
+| `prop` / `propValue` | Property key/value filter |
+| `propOp` | Property filter operator: `Contains` (default), `Equals`, `NotEquals` |
 | `page` / `pageSize` | Pagination (max pageSize: 500) |
 | `sort` / `desc` | Sort field and direction (default: Timestamp descending) |
+
+**Query parameters for `/api/logs/correlate`:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `traceId` | Required. Trace ID to correlate |
+| `contextMinutes` | Minutes of context to include before/after the trace window (default: 5) |
+
+Returns `{ traceId, traceEvents, contextBefore, contextAfter }`.
+
+### Saved Filters
+
+Requires `User` or `Admin` role.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/savedfilters` | List saved filters |
+| `POST` | `/api/savedfilters` | Create a saved filter |
+| `PUT` | `/api/savedfilters/{id}` | Update a saved filter |
+| `DELETE` | `/api/savedfilters/{id}` | Delete a saved filter |
+| `PATCH` | `/api/savedfilters/{id}/pin` | Toggle pinned state |
+
+Pinned filters appear as one-click chips at the top of the filter panel in the UI.
 
 ### Alerts
 
@@ -296,9 +359,13 @@ Requires `User` or `Admin` role.
   "sourceApplicationFilter": "MyApi",
   "throttleMinutes": 60,
   "isEnabled": true,
-  "recipientEmails": ["ops@corp.example.com"]
+  "recipientEmails": ["ops@corp.example.com"],
+  "webhookUrl": "https://hooks.slack.com/services/...",
+  "webhookFormat": "Slack"
 }
 ```
+
+`webhookFormat` accepts `Generic`, `Slack`, or `Teams`. Generic sends a flat JSON object; Slack sends an `attachments` payload; Teams sends a MessageCard.
 
 ### Admin
 

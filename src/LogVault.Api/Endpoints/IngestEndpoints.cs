@@ -58,6 +58,28 @@ public static class IngestEndpoints
             return Results.Accepted("/api/ingest/file", new { accepted = count });
         }).WithName("IngestFile").WithTags("Ingestion").DisableAntiforgery();
 
+        // OTLP/HTTP endpoint — JSON only (no protobuf dependency)
+        // Per OTLP spec the path is /v1/logs at root, not under /api/
+        app.MapPost("/v1/logs", async (
+            HttpContext ctx,
+            ILogIngestionService ingestion,
+            CancellationToken ct) =>
+        {
+            var contentType = ctx.Request.ContentType ?? "";
+            if (contentType.Contains("application/x-protobuf", StringComparison.OrdinalIgnoreCase))
+                return Results.StatusCode(415); // Unsupported Media Type — binary protobuf not supported
+
+            string body;
+            using (var reader = new StreamReader(ctx.Request.Body))
+                body = await reader.ReadToEndAsync(ct);
+
+            var context = BuildIngestContext(ctx);
+            await ingestion.IngestOtlpJsonAsync(body, context, ct);
+
+            // OTLP spec: return empty ExportLogsServiceResponse as JSON
+            return Results.Ok(new { });
+        }).RequireAuthorization("CanIngest").WithName("IngestOtlp").WithTags("Ingestion");
+
         return app;
     }
 

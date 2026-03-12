@@ -13,4 +13,5 @@ public interface ILogEventRepository
     IAsyncEnumerable<LogEvent> StreamAsync(LogEventQuery query, CancellationToken ct = default);
     Task<LogStats> GetStatsAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default);
     Task<IReadOnlyList<string>> GetDistinctApplicationsAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<AppCount>> GetTopApplicationsAsync(DateTimeOffset from, DateTimeOffset to, int limit, CancellationToken ct = default);
 }

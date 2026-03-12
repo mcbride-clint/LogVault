@@ -1,0 +1,37 @@
+@inject ILogVaultApiClient Api
+
+<MudPaper Elevation="2" Class="pa-4 h-100" Style="border-radius:12px">
+    <MudText Typo="Typo.subtitle1" Class="mb-3">@Title</MudText>
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_stats != null)
+    {
+        <MudTable Items="_stats.ByLevel" Dense="true" Hover="true" Elevation="0" Style="background:transparent">
+            <HeaderContent>
+                <MudTh>Level</MudTh>
+                <MudTh Style="text-align:right">Count</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd><LogLevelChip Level="@context.Level.ToString()" /></MudTd>
+                <MudTd Style="text-align:right; font-weight:600">@context.Count.ToString("N0")</MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Events by Level";
+    [Parameter] public int Hours { get; set; } = 24;
+
+    private bool _loading = true;
+    private LogStats? _stats;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var now = DateTimeOffset.UtcNow;
+        _stats = await Api.GetStatsAsync(now.AddHours(-Hours), now);
+        _loading = false;
+    }
+}
