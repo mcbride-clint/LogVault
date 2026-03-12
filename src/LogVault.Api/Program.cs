@@ -13,9 +13,19 @@ using LogVault.Infrastructure.Mail;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using System.Text.Json.Serialization;
+
+bool seedMode = args.Contains("--seed");
+bool forceReseed = args.Contains("--force");
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
+
+// Serialize enums as strings so the Blazor client can deserialize LogLevel as a string
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 // ----- Configuration Validation -----
 builder.Services.AddOptions<ActiveDirectoryOptions>()
@@ -88,6 +98,9 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<LogVaultDbContext>("database")
     .AddCheck<SmtpHealthCheck>("smtp");
 
+// ----- Data Seeder -----
+builder.Services.AddScoped<DataSeeder>();
+
 var app = builder.Build();
 
 // ----- DB Initialization -----
@@ -96,6 +109,15 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<LogVaultDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<LogVaultDbContext>>();
     await DbInitializer.InitializeAsync(db, logger);
+}
+
+// ----- Seed Mode -----
+if (seedMode)
+{
+    using var scope = app.Services.CreateScope();
+    var seeder = scope.ServiceProvider.GetRequiredService<DataSeeder>();
+    await seeder.SeedAsync(force: forceReseed);
+    return;
 }
 
 // ----- Middleware Pipeline -----

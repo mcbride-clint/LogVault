@@ -220,7 +220,7 @@ else
                 _appFilter = rule.SourceApplicationFilter ?? "";
                 _expr = rule.FilterExpression;
                 _throttle = rule.ThrottleMinutes;
-                _recipients = new(rule.RecipientEmails);
+                _recipients = rule.RecipientEmails?.ToList() ?? new();
                 _enabled = rule.IsEnabled;
                 _webhookUrl = rule.WebhookUrl ?? "";
                 _webhookFormat = rule.WebhookFormat;
