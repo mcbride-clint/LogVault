@@ -140,21 +140,24 @@
     {
         if (string.IsNullOrWhiteSpace(_newLabel)) return;
         var result = await Api.CreateApiKeyAsync(_newLabel, string.IsNullOrEmpty(_newApp) ? null : _newApp);
-        if (result != null)
+        if (result == null)
         {
-            _newLabel = "";
-            _newApp = "";
-            _keys = await Api.GetApiKeysAsync();
-
-            var parameters = new DialogParameters<ApiKeyRevealDialog>
-            {
-                { x => x.Title, "API Key Created" },
-                { x => x.RawKey, result.RawKey },
-                { x => x.Label, result.Label }
-            };
-            await DialogService.ShowAsync<ApiKeyRevealDialog>("API Key Created", parameters,
-                new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+            Snackbar.Add("Failed to create API key. Check the browser console for details.", Severity.Error);
+            return;
         }
+
+        _newLabel = "";
+        _newApp = "";
+        _keys = await Api.GetApiKeysAsync();
+
+        var parameters = new DialogParameters<ApiKeyRevealDialog>
+        {
+            { x => x.Title, "API Key Created" },
+            { x => x.RawKey, result.RawKey },
+            { x => x.Label, result.Label }
+        };
+        await DialogService.ShowAsync<ApiKeyRevealDialog>("API Key Created", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
     }
 
     private async Task Rotate(int id)

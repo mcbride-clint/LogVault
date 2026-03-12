@@ -352,3 +352,6 @@ MigrationBackup/
 .ionide/
 
 Artefacts/
+*.db
+*.db-shm
+*.db-wal

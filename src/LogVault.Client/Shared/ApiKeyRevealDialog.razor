@@ -39,7 +39,7 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] MudDialog MudDialog { get; set; } = null!;
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
 
     [Parameter] public string Title { get; set; } = "API Key";
     [Parameter] public string RawKey { get; set; } = "";
@@ -52,5 +52,5 @@
         Snackbar.Add("Key copied to clipboard", Severity.Success);
     }
 
-    private void Close() => MudDialog.CloseAsync();
+    private void Close() => MudDialog.Close();
 }

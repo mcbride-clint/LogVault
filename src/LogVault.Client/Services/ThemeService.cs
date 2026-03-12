@@ -59,20 +59,20 @@ public class ThemeService
         },
         Typography = new Typography
         {
-            Default = new Default
+            Default = new DefaultTypography
             {
                 FontFamily = ["Roboto", "Helvetica", "Arial", "sans-serif"],
                 FontSize = "0.875rem",
-                FontWeight = 400,
-                LineHeight = 1.43,
+                FontWeight = "400",
+                LineHeight = "1.43",
                 LetterSpacing = "0.01071em"
             },
-            H5 = new H5 { FontSize = "1.25rem", FontWeight = 600 },
-            H6 = new H6 { FontSize = "1rem", FontWeight = 600 },
-            Subtitle1 = new Subtitle1 { FontSize = "0.9rem", FontWeight = 500 },
-            Body2 = new Body2 { FontSize = "0.8125rem" },
-            Button = new Button { FontSize = "0.8125rem", FontWeight = 600, TextTransform = "none" },
-            Caption = new Caption { FontSize = "0.75rem" }
+            H5 = new H5Typography { FontSize = "1.25rem", FontWeight = "600" },
+            H6 = new H6Typography { FontSize = "1rem", FontWeight = "600" },
+            Subtitle1 = new Subtitle1Typography { FontSize = "0.9rem", FontWeight = "500" },
+            Body2 = new Body2Typography { FontSize = "0.8125rem" },
+            Button = new ButtonTypography { FontSize = "0.8125rem", FontWeight = "600", TextTransform = "none" },
+            Caption = new CaptionTypography { FontSize = "0.75rem" }
         },
         LayoutProperties = new LayoutProperties
         {

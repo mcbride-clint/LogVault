@@ -65,15 +65,15 @@ public class EfLogEventRepository : ILogEventRepository
             .Select(g => new LevelCount(g.Key, g.Count()))
             .ToListAsync(ct);
 
-        var byHour = await _db.LogEvents
+        var timestamps = await _db.LogEvents
             .Where(e => e.Timestamp >= from && e.Timestamp <= to)
-            .GroupBy(e => new { e.Timestamp.Year, e.Timestamp.Month, e.Timestamp.Day, e.Timestamp.Hour })
-            .Select(g => new { g.Key.Year, g.Key.Month, g.Key.Day, g.Key.Hour, Count = g.Count() })
-            .OrderBy(g => g.Year).ThenBy(g => g.Month).ThenBy(g => g.Day).ThenBy(g => g.Hour)
+            .Select(e => e.Timestamp)
             .ToListAsync(ct);
 
-        var hourlyList = byHour.Select(h =>
-            new HourlyCount(new DateTimeOffset(h.Year, h.Month, h.Day, h.Hour, 0, 0, TimeSpan.Zero), h.Count))
+        var hourlyList = timestamps
+            .GroupBy(ts => new { ts.Year, ts.Month, ts.Day, ts.Hour })
+            .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month).ThenBy(g => g.Key.Day).ThenBy(g => g.Key.Hour)
+            .Select(g => new HourlyCount(new DateTimeOffset(g.Key.Year, g.Key.Month, g.Key.Day, g.Key.Hour, 0, 0, TimeSpan.Zero), g.Count()))
             .ToList();
 
         return new LogStats(byLevel, hourlyList);

@@ -26,11 +26,6 @@
                                Color="Color.Inherit"
                                OnClick="ThemeService.ToggleDarkMode" />
             </MudTooltip>
-            <MudTooltip Text="Sign out">
-                <MudIconButton Icon="@Icons.Material.Filled.Logout"
-                               Color="Color.Inherit"
-                               OnClick="Logout" />
-            </MudTooltip>
         }
     </MudAppBar>
 
@@ -50,31 +45,40 @@
 
     <MudMainContent Class="pt-16">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-4 pa-md-6">
-            @Body
+            @if (!_initialized)
+            {
+                <MudProgressCircular Indeterminate="true" />
+            }
+            else if (!Auth.IsAuthenticated)
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-8">
+                    Access denied. You do not have permission to use LogVault.
+                    Contact your administrator to be added to the required Active Directory group.
+                </MudAlert>
+            }
+            else
+            {
+                @Body
+            }
         </MudContainer>
     </MudMainContent>
+
+    <MudPopoverProvider />
 </MudLayout>
 
 @code {
     private bool _drawerOpen = true;
+    private bool _initialized;
 
     protected override async Task OnInitializedAsync()
     {
         Auth.OnChange += StateHasChanged;
         ThemeService.OnChange += StateHasChanged;
         await Auth.InitializeAsync(Api);
-        if (!Auth.IsAuthenticated && !Nav.Uri.Contains("/login"))
-            Nav.NavigateTo("/login");
+        _initialized = true;
     }
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
-
-    private async Task Logout()
-    {
-        await Api.LogoutAsync();
-        Auth.SetUser(null);
-        Nav.NavigateTo("/login");
-    }
 
     public void Dispose()
     {

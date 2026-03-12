@@ -11,15 +11,6 @@ public class LogVaultApiClient : ILogVaultApiClient
 
     public LogVaultApiClient(HttpClient http) => _http = http;
 
-    public async Task<LoginResponse?> LoginAsync(string username, string password, bool rememberMe = false)
-    {
-        var resp = await _http.PostAsJsonAsync("/api/auth/login", new { username, password, rememberMe });
-        if (!resp.IsSuccessStatusCode) return null;
-        return await resp.Content.ReadFromJsonAsync<LoginResponse>(_opts);
-    }
-
-    public Task LogoutAsync() => _http.PostAsync("/api/auth/logout", null);
-
     public async Task<UserInfo?> GetMeAsync()
     {
         try { return await _http.GetFromJsonAsync<UserInfo>("/api/auth/me", _opts); }
@@ -97,9 +88,13 @@ public class LogVaultApiClient : ILogVaultApiClient
 
     public async Task<CreateApiKeyResult?> CreateApiKeyAsync(string label, string? defaultApplication)
     {
-        var resp = await _http.PostAsJsonAsync("/api/admin/apikeys", new { label, defaultApplication });
-        if (!resp.IsSuccessStatusCode) return null;
-        return await resp.Content.ReadFromJsonAsync<CreateApiKeyResult>(_opts);
+        try
+        {
+            var resp = await _http.PostAsJsonAsync("/api/admin/apikeys", new { label, defaultApplication });
+            if (!resp.IsSuccessStatusCode) return null;
+            return await resp.Content.ReadFromJsonAsync<CreateApiKeyResult>(_opts);
+        }
+        catch { return null; }
     }
 
     public async Task<RotateApiKeyResult?> RotateApiKeyAsync(int id)

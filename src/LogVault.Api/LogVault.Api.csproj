@@ -2,13 +2,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LogVault.Application\LogVault.Application.csproj" />
+    <ProjectReference Include="..\LogVault.Client\LogVault.Client.csproj" />
     <ProjectReference Include="..\LogVault.Infrastructure\LogVault.Infrastructure.csproj" />
     <ProjectReference Include="..\LogVault.Infrastructure.Mail\LogVault.Infrastructure.Mail.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="33.1.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.3.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.3" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.3" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.4" />
   </ItemGroup>

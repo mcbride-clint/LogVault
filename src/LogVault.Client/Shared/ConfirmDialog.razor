@@ -15,12 +15,12 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] MudDialog MudDialog { get; set; } = null!;
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
 
     [Parameter] public string Title { get; set; } = "Confirm";
     [Parameter] public string Message { get; set; } = "Are you sure?";
     [Parameter] public string ConfirmText { get; set; } = "Delete";
 
-    private void Cancel() => MudDialog.CloseAsync();
-    private void Confirm() => MudDialog.CloseAsync(DialogResult.Ok(true));
+    private void Cancel() => MudDialog.Close();
+    private void Confirm() => MudDialog.Close(DialogResult.Ok(true));
 }

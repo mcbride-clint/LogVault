@@ -75,8 +75,8 @@
 
 @code {
     [CascadingParameter]
-    MudDialog MudDialog { get; set; } = null!;
+    IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter, EditorRequired] public LogEventDto Event { get; set; } = null!;
 
-    private void Close() => MudDialog.CloseAsync();
+    private void Close() => MudDialog.Close();
 }

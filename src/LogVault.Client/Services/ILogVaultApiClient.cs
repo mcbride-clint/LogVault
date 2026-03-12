@@ -4,8 +4,6 @@ namespace LogVault.Client.Services;
 
 public interface ILogVaultApiClient
 {
-    Task<LoginResponse?> LoginAsync(string username, string password, bool rememberMe = false);
-    Task LogoutAsync();
     Task<UserInfo?> GetMeAsync();
     Task<PagedResult<LogEventDto>?> QueryLogsAsync(LogQuery query);
     Task<LogEventDto?> GetLogByIdAsync(long id);
@@ -26,7 +24,6 @@ public interface ILogVaultApiClient
 }
 
 // DTOs
-public record LoginResponse(string Username, string? DisplayName, string? Email, List<string> Roles);
 public record UserInfo(string? Username, string? DisplayName, string? Email, List<string> Roles, string AuthMethod);
 public record LogEventDto(long Id, DateTimeOffset Timestamp, string Level, string? SourceApplication,
     string? SourceEnvironment, string RenderedMessage, string? Exception, string PropertiesJson,

@@ -1,6 +1,4 @@
 using LogVault.Domain.Repositories;
-using LogVault.Domain.Services;
-using LogVault.Infrastructure.Auth;
 using LogVault.Infrastructure.Data;
 using LogVault.Infrastructure.HealthChecks;
 using LogVault.Infrastructure.Repositories;
@@ -33,10 +31,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAlertFiredRepository, EfAlertFiredRepository>();
         services.AddScoped<IApiKeyRepository, EfApiKeyRepository>();
 
-        services.AddScoped<IAdAuthService, LdapAdAuthService>();
-
         services.AddTransient<SmtpHealthCheck>();
-        services.AddTransient<LdapHealthCheck>();
 
         return services;
     }

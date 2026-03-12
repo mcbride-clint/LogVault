@@ -1,5 +1,6 @@
 using LogVault.Application;
 using LogVault.Application.Workers;
+using LogVault.Api.Auth;
 using LogVault.Api.Configuration;
 using LogVault.Api.Endpoints;
 using LogVault.Api.Hubs;
@@ -9,7 +10,8 @@ using LogVault.Infrastructure;
 using LogVault.Infrastructure.Data;
 using LogVault.Infrastructure.HealthChecks;
 using LogVault.Infrastructure.Mail;
-using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -53,32 +55,13 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<ILogHubNotifier, LogHubNotifier>();
 
 // ----- Authentication -----
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(opt =>
-    {
-        opt.LoginPath = "/login";
-        opt.LogoutPath = "/api/auth/logout";
-        opt.Events.OnRedirectToLogin = ctx =>
-        {
-            if (ctx.Request.Path.StartsWithSegments("/api"))
-            {
-                ctx.Response.StatusCode = 401;
-                return Task.CompletedTask;
-            }
-            ctx.Response.Redirect(ctx.RedirectUri);
-            return Task.CompletedTask;
-        };
-        opt.Events.OnRedirectToAccessDenied = ctx =>
-        {
-            if (ctx.Request.Path.StartsWithSegments("/api"))
-            {
-                ctx.Response.StatusCode = 403;
-                return Task.CompletedTask;
-            }
-            ctx.Response.Redirect(ctx.RedirectUri);
-            return Task.CompletedTask;
-        };
-    });
+builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme)
+    .AddNegotiate();
+
+// Map Windows AD group membership to Admin/User roles
+#pragma warning disable CA1416 // Windows-only deployment
+builder.Services.AddTransient<IClaimsTransformation, WindowsRolesClaimsTransformation>();
+#pragma warning restore CA1416
 
 builder.Services.AddAuthorization(o =>
 {
@@ -103,16 +86,7 @@ builder.Services.AddSwaggerGen(c =>
 // ----- Health Checks -----
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<LogVaultDbContext>("database")
-    .AddCheck<SmtpHealthCheck>("smtp")
-    .AddCheck<LdapHealthCheck>("ldap");
-
-// ----- CORS (for WASM client) -----
-builder.Services.AddCors(opt =>
-    opt.AddDefaultPolicy(p => p
-        .WithOrigins(config["AllowedOrigins"] ?? "http://localhost:5000", "https://localhost:5001")
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials()));
+    .AddCheck<SmtpHealthCheck>("smtp");
 
 var app = builder.Build();
 
@@ -141,7 +115,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors();
+app.UseBlazorFrameworkFiles();
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseMiddleware<ApiKeyMiddleware>();
 app.UseAuthorization();
@@ -158,6 +133,8 @@ app.MapLogQueryEndpoints();
 app.MapAlertEndpoints();
 app.MapAdminEndpoints();
 app.MapAuthEndpoints();
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
 

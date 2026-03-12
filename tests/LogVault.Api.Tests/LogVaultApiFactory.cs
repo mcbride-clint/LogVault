@@ -1,17 +1,19 @@
 using LogVault.Api.Middleware;
 using LogVault.Domain.Entities;
-using LogVault.Domain.Models;
 using LogVault.Domain.Repositories;
-using LogVault.Domain.Services;
 using LogVault.Infrastructure.Data;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Moq;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
 
 namespace LogVault.Api.Tests;
 
@@ -29,24 +31,19 @@ public class LogVaultApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.RemoveAll<LogVaultDbContext>();
             services.AddDbContext<LogVaultDbContext>(o => o.UseSqlite($"Data Source={_dbPath}"));
 
-            // Mock LDAP auth — accept test credentials admin/password → Admin+User roles
-            services.RemoveAll<IAdAuthService>();
-            var adMock = new Mock<IAdAuthService>();
-            adMock.Setup(s => s.AuthenticateAsync("admin", "password", It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new AdAuthResult(true, "Test Admin", "admin@test.local", null));
-            adMock.Setup(s => s.GetGroupsAsync("admin", It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new List<string> { "LogVault-Admins" });
-            services.AddSingleton(adMock.Object);
+            // Replace Negotiate (Windows Auth) with a test scheme that auto-authenticates
+            // all requests as Admin+User — simulates a domain user in the required AD group.
+            services.AddAuthentication(TestAuthHandler.SchemeName)
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+                    TestAuthHandler.SchemeName, _ => { });
 
-            // Replace smtp/ldap health checks with no-ops
+            // Replace smtp health check with no-op
             services.Configure<HealthCheckServiceOptions>(options =>
             {
-                foreach (var r in options.Registrations.Where(r => r.Name is "smtp" or "ldap").ToList())
+                foreach (var r in options.Registrations.Where(r => r.Name == "smtp").ToList())
                     options.Registrations.Remove(r);
                 options.Registrations.Add(new HealthCheckRegistration(
                     "smtp", _ => new NoOpHealthCheck(), null, null));
-                options.Registrations.Add(new HealthCheckRegistration(
-                    "ldap", _ => new NoOpHealthCheck(), null, null));
             });
         });
     }
@@ -106,27 +103,49 @@ public class LogVaultApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         return client;
     }
 
-    /// <summary>Creates an HttpClient authenticated as admin (cookie auth via /api/auth/login).</summary>
-    public async Task<HttpClient> CreateAdminClientAsync()
+    /// <summary>
+    /// Creates an HttpClient authenticated as admin.
+    /// With Windows Authentication, all test requests are automatically authenticated
+    /// as Admin+User via <see cref="TestAuthHandler"/>.
+    /// </summary>
+    public Task<HttpClient> CreateAdminClientAsync()
     {
-        var client = CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
-
-        var response = await client.PostAsJsonAsync("/api/auth/login",
-            new { Username = "admin", Password = "password", RememberMe = false });
-
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"Login failed: {response.StatusCode}");
-
-        return client;
+        var client = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        return Task.FromResult(client);
     }
 
     private sealed class NoOpHealthCheck : IHealthCheck
     {
         public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext ctx, CancellationToken ct = default)
             => Task.FromResult(HealthCheckResult.Healthy("mocked"));
+    }
+}
+
+/// <summary>
+/// Test authentication handler that auto-authenticates every request as a domain user
+/// with Admin and User roles — replaces Negotiate/Windows auth in integration tests.
+/// </summary>
+public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+{
+    public const string SchemeName = "TestAuth";
+
+    public TestAuthHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder)
+        : base(options, logger, encoder) { }
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.Name, "TESTDOMAIN\\testadmin"),
+            new Claim("DisplayName", "Test Admin"),
+            new Claim(ClaimTypes.Role, "Admin"),
+            new Claim(ClaimTypes.Role, "User"),
+        };
+        var identity = new ClaimsIdentity(claims, SchemeName);
+        var principal = new ClaimsPrincipal(identity);
+        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName)));
     }
 }
