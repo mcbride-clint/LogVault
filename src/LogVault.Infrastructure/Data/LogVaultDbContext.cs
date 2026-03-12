@@ -13,6 +13,7 @@ public class LogVaultDbContext : DbContext
     public DbSet<AlertRecipient> AlertRecipients => Set<AlertRecipient>();
     public DbSet<AlertFired> AlertsFired => Set<AlertFired>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+    public DbSet<SavedFilter> SavedFilters => Set<SavedFilter>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

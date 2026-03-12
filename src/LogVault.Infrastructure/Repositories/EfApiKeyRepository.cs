@@ -42,6 +42,10 @@ public class EfApiKeyRepository : IApiKeyRepository
             var old = await _db.ApiKeys.FindAsync([existingKeyId], ct)
                 ?? throw new KeyNotFoundException($"ApiKey {existingKeyId} not found");
 
+            // Carry the original label to the new key; rename old key with recycled date
+            newKey.Label = old.Label;
+            newKey.DefaultApplication = old.DefaultApplication;
+            old.Label = $"{old.Label} (recycled {newKey.CreatedAt:yyyy-MM-dd})";
             old.ExpiresAt = newKey.CreatedAt.AddHours(24);
 
             newKey.RotatedFromId = existingKeyId;

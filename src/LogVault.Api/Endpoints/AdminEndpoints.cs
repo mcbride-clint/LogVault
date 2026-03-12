@@ -78,7 +78,6 @@ public static class AdminEndpoints
             var newKey = new ApiKey
             {
                 KeyHash = hash,
-                Label = $"rotated-{DateTimeOffset.UtcNow:yyyyMMdd}",
                 IsEnabled = true,
                 CreatedAt = DateTimeOffset.UtcNow
             };
@@ -90,6 +89,7 @@ public static class AdminEndpoints
                 {
                     NewKeyId = created.Id,
                     RawKey = rawKey,
+                    Label = created.Label,
                     OldKeyExpiresAt = expired.ExpiresAt
                 });
             }

@@ -133,6 +133,7 @@ app.MapLogQueryEndpoints();
 app.MapAlertEndpoints();
 app.MapAdminEndpoints();
 app.MapAuthEndpoints();
+app.MapSavedFilterEndpoints();
 
 app.MapFallbackToFile("index.html");
 

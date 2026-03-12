@@ -1,5 +1,6 @@
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
+@inject IDialogService DialogService
 
 <MudDialog>
     <TitleContent>
@@ -69,6 +70,13 @@
         </MudGrid>
     </DialogContent>
     <DialogActions>
+        <MudButton OnClick="CreateAlert"
+                   Variant="Variant.Outlined"
+                   Color="Color.Warning"
+                   StartIcon="@Icons.Material.Filled.AddAlert">
+            Create Alert
+        </MudButton>
+        <MudSpacer />
         <MudButton OnClick="Close" Variant="Variant.Text">Close</MudButton>
     </DialogActions>
 </MudDialog>
@@ -79,4 +87,14 @@
     [Parameter, EditorRequired] public LogEventDto Event { get; set; } = null!;
 
     private void Close() => MudDialog.Close();
+
+    private async Task CreateAlert()
+    {
+        var parameters = new DialogParameters<CreateAlertFromLogDialog>
+        {
+            { x => x.Event, Event }
+        };
+        await DialogService.ShowAsync<CreateAlertFromLogDialog>("Create Alert", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+    }
 }

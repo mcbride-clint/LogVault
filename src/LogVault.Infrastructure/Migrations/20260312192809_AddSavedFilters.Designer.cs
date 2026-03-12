@@ -2,6 +2,7 @@
 using LogVault.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -9,9 +10,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LogVault.Infrastructure.Migrations
 {
     [DbContext(typeof(LogVaultDbContext))]
-    partial class LogVaultDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260312192809_AddSavedFilters")]
+    partial class AddSavedFilters
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.3");

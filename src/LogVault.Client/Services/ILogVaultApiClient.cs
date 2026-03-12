@@ -21,6 +21,10 @@ public interface ILogVaultApiClient
     Task RevokeApiKeyAsync(int id);
     Task<PurgeResult?> TriggerRetentionAsync();
     Task<PurgeResult?> PurgeLogsAsync(DateTimeOffset before);
+    Task<List<SavedFilterDto>?> GetSavedFiltersAsync();
+    Task<SavedFilterDto?> CreateSavedFilterAsync(string name, string filterJson);
+    Task<SavedFilterDto?> UpdateSavedFilterAsync(int id, string name, string filterJson);
+    Task DeleteSavedFilterAsync(int id);
 }
 
 // DTOs
@@ -42,8 +46,14 @@ public record TestExpressionResult(bool Valid, string? Error);
 public record ApiKeyDto(int Id, string Label, string? DefaultApplication, bool IsEnabled,
     bool IsRevoked, DateTimeOffset CreatedAt, DateTimeOffset? ExpiresAt);
 public record CreateApiKeyResult(int Id, string RawKey, string Label, string? DefaultApplication);
-public record RotateApiKeyResult(int NewKeyId, string RawKey, DateTimeOffset? OldKeyExpiresAt);
+public record RotateApiKeyResult(int NewKeyId, string RawKey, string? Label, DateTimeOffset? OldKeyExpiresAt);
 public record PurgeResult(int DeletedCount);
+public record SavedFilterDto(int Id, string Name, string OwnerId, string FilterJson,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+public record SavedFilterData(
+    DateTimeOffset? From, DateTimeOffset? To,
+    string? Level, string? App, string? Env,
+    string? Q, string? TraceId, string? Prop, string? PropValue);
 
 public record LogQuery(
     DateTimeOffset? From = null, DateTimeOffset? To = null,

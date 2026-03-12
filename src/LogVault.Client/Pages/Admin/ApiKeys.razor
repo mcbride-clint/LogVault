@@ -171,6 +171,7 @@
             {
                 { x => x.Title, "API Key Rotated" },
                 { x => x.RawKey, result.RawKey },
+                { x => x.Label, result.Label },
                 { x => x.OldKeyExpiry, expiry != null ? $"Old key expires: {expiry}" : null }
             };
             await DialogService.ShowAsync<ApiKeyRevealDialog>("API Key Rotated", parameters,

@@ -30,6 +30,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAlertRuleRepository, EfAlertRuleRepository>();
         services.AddScoped<IAlertFiredRepository, EfAlertFiredRepository>();
         services.AddScoped<IApiKeyRepository, EfApiKeyRepository>();
+        services.AddScoped<ISavedFilterRepository, EfSavedFilterRepository>();
 
         services.AddTransient<SmtpHealthCheck>();
 

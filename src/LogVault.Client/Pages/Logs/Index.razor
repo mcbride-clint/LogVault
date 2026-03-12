@@ -1,8 +1,10 @@
 @page "/logs"
 @using Microsoft.AspNetCore.SignalR.Client
+@using System.Text.Json
 @inject ILogVaultApiClient Api
 @inject NavigationManager Nav
 @inject IDialogService DialogService
+@inject ISnackbar Snackbar
 @implements IAsyncDisposable
 
 <PageTitle>Log Explorer — LogVault</PageTitle>
@@ -19,7 +21,7 @@
                                Variant="Variant.Outlined"
                                Disabled="@_liveTailActive"
                                DateFormat="yyyy-MM-dd HH:mm"
-                               Clearable="true"
+                               Clearable="true" 
                                Dense="true" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
@@ -94,6 +96,40 @@
                 LIVE
             </MudChip>
         }
+
+        <MudDivider Vertical="true" FlexItem="true" Class="mx-1" />
+
+        @* Saved filters *@
+        @if (_savedFilters != null && _savedFilters.Count > 0)
+        {
+            <MudMenu Label="Load Filter" StartIcon="@Icons.Material.Filled.BookmarkBorder"
+                     Variant="Variant.Outlined" Size="Size.Small" Dense="true"
+                     Disabled="@_liveTailActive">
+                @foreach (var sf in _savedFilters)
+                {
+                    <MudMenuItem OnClick="() => LoadFilter(sf)">
+                        <div class="d-flex align-center justify-space-between" style="min-width:160px">
+                            <MudText Typo="Typo.body2">@sf.Name</MudText>
+                            <MudTooltip Text="Delete filter">
+                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                               Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteFilter(sf))" />
+                            </MudTooltip>
+                        </div>
+                    </MudMenuItem>
+                }
+            </MudMenu>
+        }
+
+        <MudButton Variant="Variant.Outlined"
+                   StartIcon="@Icons.Material.Filled.Bookmark"
+                   Size="Size.Small"
+                   Disabled="@_liveTailActive"
+                   OnClick="OpenSaveFilterDialog">
+            Save Filter
+        </MudButton>
+
         <MudSpacer />
         @if (_result != null && !_liveTailActive)
         {
@@ -103,6 +139,35 @@
         }
     </div>
 </MudPaper>
+
+@* Save filter dialog *@
+@if (_showSaveDialog)
+{
+    <MudPaper Elevation="4" Class="pa-4 mb-4" Style="border-radius:12px; border:1px solid var(--mud-palette-primary)">
+        <MudText Typo="Typo.subtitle2" Class="mb-3">Save Current Filter</MudText>
+        <div class="d-flex align-center gap-2">
+            <MudTextField @bind-Value="_saveFilterName"
+                          Label="Filter name"
+                          Variant="Variant.Outlined"
+                          Dense="true"
+                          Placeholder="e.g. Production Errors"
+                          Class="flex-1"
+                          Immediate="true" />
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Size="Size.Small"
+                       OnClick="SaveFilter"
+                       Disabled="@string.IsNullOrWhiteSpace(_saveFilterName)">
+                Save
+            </MudButton>
+            <MudButton Variant="Variant.Text"
+                       Size="Size.Small"
+                       OnClick="() => _showSaveDialog = false">
+                Cancel
+            </MudButton>
+        </div>
+    </MudPaper>
+}
 
 @* Results table *@
 <MudPaper Elevation="2" Style="border-radius:12px; overflow:hidden">
@@ -190,9 +255,23 @@
     private int _page = 1;
     private int _pageSize = 50;
 
+    private List<SavedFilterDto>? _savedFilters;
+    private bool _showSaveDialog;
+    private string _saveFilterName = "";
+
+    private static readonly JsonSerializerOptions _jsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
     private int TotalPages => _result == null ? 1 : Math.Max(1, (_result.TotalCount + _pageSize - 1) / _pageSize);
 
-    protected override async Task OnInitializedAsync() => await Search();
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(Search(), LoadSavedFilters());
+    }
+
+    private async Task LoadSavedFilters()
+    {
+        _savedFilters = await Api.GetSavedFiltersAsync();
+    }
 
     private async Task Search()
     {
@@ -207,6 +286,64 @@
 
         _events = _result?.Items ?? new();
         _loading = false;
+    }
+
+    private void OpenSaveFilterDialog()
+    {
+        _saveFilterName = "";
+        _showSaveDialog = true;
+    }
+
+    private async Task SaveFilter()
+    {
+        var data = new SavedFilterData(
+            From: _from.HasValue ? (DateTimeOffset?)new DateTimeOffset(_from.Value, TimeSpan.Zero) : null,
+            To: _to.HasValue ? (DateTimeOffset?)new DateTimeOffset(_to.Value, TimeSpan.Zero) : null,
+            Level: string.IsNullOrEmpty(_level) ? null : _level,
+            App: string.IsNullOrEmpty(_app) ? null : _app,
+            Env: null, Q: string.IsNullOrEmpty(_search) ? null : _search,
+            TraceId: null, Prop: null, PropValue: null);
+
+        var json = JsonSerializer.Serialize(data, _jsonOpts);
+        var result = await Api.CreateSavedFilterAsync(_saveFilterName, json);
+        if (result != null)
+        {
+            _savedFilters ??= new();
+            _savedFilters.Add(result);
+            _savedFilters = _savedFilters.OrderBy(f => f.Name).ToList();
+            Snackbar.Add($"Filter \"{result.Name}\" saved.", Severity.Success);
+        }
+        _showSaveDialog = false;
+        _saveFilterName = "";
+    }
+
+    private async Task LoadFilter(SavedFilterDto sf)
+    {
+        try
+        {
+            var data = JsonSerializer.Deserialize<SavedFilterData>(sf.FilterJson, _jsonOpts);
+            if (data == null) return;
+
+            _from = data.From?.LocalDateTime;
+            _to = data.To?.LocalDateTime;
+            _level = data.Level ?? "";
+            _app = data.App ?? "";
+            _search = data.Q ?? "";
+            _page = 1;
+            Snackbar.Add($"Loaded filter \"{sf.Name}\".", Severity.Info);
+            await Search();
+        }
+        catch
+        {
+            Snackbar.Add("Failed to load filter.", Severity.Error);
+        }
+    }
+
+    private async Task DeleteFilter(SavedFilterDto sf)
+    {
+        await Api.DeleteSavedFilterAsync(sf.Id);
+        _savedFilters?.Remove(sf);
+        Snackbar.Add($"Filter \"{sf.Name}\" deleted.", Severity.Warning);
     }
 
     private async Task OnRowClick(TableRowClickEventArgs<LogEventDto> args)

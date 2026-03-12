@@ -120,6 +120,36 @@ public class LogVaultApiClient : ILogVaultApiClient
         return await resp.Content.ReadFromJsonAsync<PurgeResult>(_opts);
     }
 
+    public async Task<List<SavedFilterDto>?> GetSavedFiltersAsync()
+    {
+        try { return await _http.GetFromJsonAsync<List<SavedFilterDto>>("/api/savedfilters", _opts); }
+        catch { return null; }
+    }
+
+    public async Task<SavedFilterDto?> CreateSavedFilterAsync(string name, string filterJson)
+    {
+        try
+        {
+            var resp = await _http.PostAsJsonAsync("/api/savedfilters", new { name, filterJson });
+            if (!resp.IsSuccessStatusCode) return null;
+            return await resp.Content.ReadFromJsonAsync<SavedFilterDto>(_opts);
+        }
+        catch { return null; }
+    }
+
+    public async Task<SavedFilterDto?> UpdateSavedFilterAsync(int id, string name, string filterJson)
+    {
+        try
+        {
+            var resp = await _http.PutAsJsonAsync($"/api/savedfilters/{id}", new { name, filterJson });
+            if (!resp.IsSuccessStatusCode) return null;
+            return await resp.Content.ReadFromJsonAsync<SavedFilterDto>(_opts);
+        }
+        catch { return null; }
+    }
+
+    public Task DeleteSavedFilterAsync(int id) => _http.DeleteAsync($"/api/savedfilters/{id}");
+
     private static string BuildQueryUrl(string base_, LogQuery q)
     {
         var sb = new StringBuilder(base_).Append('?');
