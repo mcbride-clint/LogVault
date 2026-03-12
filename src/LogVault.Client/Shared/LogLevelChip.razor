@@ -1,0 +1,25 @@
+@* Reusable chip for displaying log level with color coding *@
+
+<MudChip T="string"
+         Size="Size.Small"
+         Color="@GetColor(Level)"
+         Variant="Variant.Filled"
+         Class="ma-0"
+         Style="font-size:0.7rem; font-weight:600; height:20px; min-width:72px; justify-content:center">
+    @Level
+</MudChip>
+
+@code {
+    [Parameter, EditorRequired] public string Level { get; set; } = "";
+
+    private static Color GetColor(string level) => level switch
+    {
+        "Fatal"       => Color.Dark,
+        "Error"       => Color.Error,
+        "Warning"     => Color.Warning,
+        "Information" => Color.Info,
+        "Debug"       => Color.Default,
+        "Verbose"     => Color.Default,
+        _             => Color.Default
+    };
+}

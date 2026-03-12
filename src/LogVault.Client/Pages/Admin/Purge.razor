@@ -1,54 +1,112 @@
 @page "/admin/purge"
 @inject ILogVaultApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
-<h1>Log Retention</h1>
+<PageTitle>Log Retention — LogVault</PageTitle>
 
-<div class="card mb-3" style="max-width:400px">
-    <div class="card-body">
-        <h5 class="card-title">Automatic Retention</h5>
-        <p class="card-text text-muted">Configure in appsettings.json under <code>Retention</code>.</p>
-        <button class="btn btn-warning" @onclick="TriggerRetention" disabled="@_busy">
-            @(_busy ? "Running..." : "Run Retention Now")
-        </button>
-        @if (_retentionResult != null)
-        {
-            <div class="alert alert-info mt-2">Deleted @_retentionResult.DeletedCount events.</div>
-        }
-    </div>
-</div>
+<MudText Typo="Typo.h5" Class="mb-1" Style="font-weight:700">Log Retention</MudText>
+<MudText Typo="Typo.body2" Class="mud-text-secondary mb-6">Manage storage by removing old log events</MudText>
 
-<div class="card" style="max-width:400px">
-    <div class="card-body">
-        <h5 class="card-title">Manual Purge</h5>
-        <div class="mb-3">
-            <label class="form-label">Delete events older than</label>
-            <input type="datetime-local" class="form-control" @bind="_purgeBefore" />
-        </div>
-        <button class="btn btn-danger" @onclick="PurgeLogs" disabled="@_busy">Purge</button>
-        @if (_purgeResult != null)
-        {
-            <div class="alert alert-info mt-2">Deleted @_purgeResult.DeletedCount events.</div>
-        }
-    </div>
-</div>
+<MudGrid Spacing="3">
+    @* Automatic retention *@
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="2" Class="pa-6" Style="border-radius:12px">
+            <div class="d-flex align-center gap-2 mb-2">
+                <MudIcon Icon="@Icons.Material.Filled.AutoDelete" Color="Color.Warning" />
+                <MudText Typo="Typo.subtitle1" Style="font-weight:600">Automatic Retention</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
+                Configure the retention policy in <code style="font-size:0.8rem">appsettings.json</code> under the <code style="font-size:0.8rem">Retention</code> section. Click below to run the worker immediately.
+            </MudText>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Warning"
+                       StartIcon="@Icons.Material.Filled.PlayArrow"
+                       OnClick="TriggerRetention"
+                       Disabled="@_busy">
+                @(_busy ? "Running..." : "Run Retention Now")
+            </MudButton>
+
+            @if (_retentionResult != null)
+            {
+                <MudAlert Severity="Severity.Info" Class="mt-4" Dense="true"
+                          Icon="@Icons.Material.Filled.CheckCircle">
+                    Deleted <strong>@_retentionResult.DeletedCount.ToString("N0")</strong> events.
+                </MudAlert>
+            }
+        </MudPaper>
+    </MudItem>
+
+    @* Manual purge *@
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="2" Class="pa-6" Style="border-radius:12px">
+            <div class="d-flex align-center gap-2 mb-2">
+                <MudIcon Icon="@Icons.Material.Filled.DeleteForever" Color="Color.Error" />
+                <MudText Typo="Typo.subtitle1" Style="font-weight:600">Manual Purge</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
+                Permanently delete all events older than the selected date and time. This cannot be undone.
+            </MudText>
+
+            <MudDatePicker @bind-Date="_purgeBeforeDate" 
+                               Label="Delete events older than"
+                               Variant="Variant.Outlined"
+                               DateFormat="yyyy-MM-dd HH:mm"
+                               Class="mb-4" />
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Error"
+                       StartIcon="@Icons.Material.Filled.DeleteForever"
+                       OnClick="ConfirmPurge"
+                       Disabled="@_busy">
+                Purge Events
+            </MudButton>
+
+            @if (_purgeResult != null)
+            {
+                <MudAlert Severity="Severity.Info" Class="mt-4" Dense="true"
+                          Icon="@Icons.Material.Filled.CheckCircle">
+                    Deleted <strong>@_purgeResult.DeletedCount.ToString("N0")</strong> events.
+                </MudAlert>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
 
 @code {
     private bool _busy;
     private PurgeResult? _retentionResult;
     private PurgeResult? _purgeResult;
-    private DateTime _purgeBefore = DateTime.UtcNow.AddDays(-30);
+    private DateTime? _purgeBeforeDate = DateTime.UtcNow.AddDays(-30);
 
     private async Task TriggerRetention()
     {
         _busy = true;
         _retentionResult = await Api.TriggerRetentionAsync();
         _busy = false;
+        Snackbar.Add($"Retention complete. Deleted {_retentionResult?.DeletedCount ?? 0:N0} events.", Severity.Success);
     }
 
-    private async Task PurgeLogs()
+    private async Task ConfirmPurge()
     {
-        _busy = true;
-        _purgeResult = await Api.PurgeLogsAsync(new DateTimeOffset(_purgeBefore, TimeSpan.Zero));
-        _busy = false;
+        if (_purgeBeforeDate == null) return;
+
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, "Confirm Manual Purge" },
+            { x => x.Message, $"This will permanently delete all events before {_purgeBeforeDate:yyyy-MM-dd HH:mm}. This action cannot be undone." },
+            { x => x.ConfirmText, "Purge" }
+        };
+        var result = await DialogService.ShowAsync<ConfirmDialog>("Confirm", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall });
+        var dialogResult = await result.Result;
+        if (!dialogResult.Canceled)
+        {
+            _busy = true;
+            _purgeResult = await Api.PurgeLogsAsync(new DateTimeOffset(_purgeBeforeDate.Value, TimeSpan.Zero));
+            _busy = false;
+            Snackbar.Add($"Purge complete. Deleted {_purgeResult?.DeletedCount ?? 0:N0} events.", Severity.Success);
+        }
     }
 }

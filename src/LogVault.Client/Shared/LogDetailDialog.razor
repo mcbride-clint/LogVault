@@ -1,0 +1,82 @@
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <LogLevelChip Level="@Event.Level" />
+            <MudText Typo="Typo.h6">Event Detail</MudText>
+            <MudSpacer />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">ID: @Event.Id</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="4"><MudText Typo="Typo.caption" Class="mud-text-secondary">Timestamp</MudText></MudItem>
+            <MudItem xs="12" sm="8"><MudText Typo="Typo.body2">@Event.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff zzz")</MudText></MudItem>
+
+            <MudItem xs="12" sm="4"><MudText Typo="Typo.caption" Class="mud-text-secondary">Level</MudText></MudItem>
+            <MudItem xs="12" sm="8"><LogLevelChip Level="@Event.Level" /></MudItem>
+
+            <MudItem xs="12" sm="4"><MudText Typo="Typo.caption" Class="mud-text-secondary">Application</MudText></MudItem>
+            <MudItem xs="12" sm="8"><MudText Typo="Typo.body2">@Event.SourceApplication</MudText></MudItem>
+
+            <MudItem xs="12" sm="4"><MudText Typo="Typo.caption" Class="mud-text-secondary">Environment</MudText></MudItem>
+            <MudItem xs="12" sm="8"><MudText Typo="Typo.body2">@(Event.SourceEnvironment ?? "—")</MudText></MudItem>
+
+            <MudItem xs="12">
+                <MudDivider />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Message</MudText>
+                <MudPaper Outlined="true" Class="pa-3 mt-1" Style="background:transparent">
+                    <MudText Typo="Typo.body2" Style="white-space:pre-wrap; word-break:break-word">@Event.RenderedMessage</MudText>
+                </MudPaper>
+            </MudItem>
+
+            @if (Event.TraceId != null)
+            {
+                <MudItem xs="12" sm="4"><MudText Typo="Typo.caption" Class="mud-text-secondary">Trace ID</MudText></MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudText Typo="Typo.body2" Style="font-family:monospace">@Event.TraceId</MudText>
+                </MudItem>
+            }
+
+            @if (Event.Exception != null)
+            {
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Exception</MudText>
+                    <MudPaper Outlined="true" Class="pa-3 mt-1"
+                              Style="background: rgba(var(--mud-palette-error-rgb), 0.05); border-color: var(--mud-palette-error)">
+                        <MudText Typo="Typo.body2"
+                                 Style="font-family:monospace; font-size:0.75rem; white-space:pre-wrap; word-break:break-word; color:var(--mud-palette-error-text)">
+                            @Event.Exception
+                        </MudText>
+                    </MudPaper>
+                </MudItem>
+            }
+
+            <MudItem xs="12">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Properties</MudText>
+                <MudPaper Outlined="true" Class="pa-3 mt-1" Style="background:transparent">
+                    <MudText Typo="Typo.body2"
+                             Style="font-family:monospace; font-size:0.75rem; white-space:pre-wrap; word-break:break-word">
+                        @Event.PropertiesJson
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close" Variant="Variant.Text">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    MudDialog MudDialog { get; set; } = null!;
+    [Parameter, EditorRequired] public LogEventDto Event { get; set; } = null!;
+
+    private void Close() => MudDialog.CloseAsync();
+}

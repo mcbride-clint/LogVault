@@ -1,6 +1,22 @@
+@inject ThemeService ThemeService
+
+<MudThemeProvider @ref="_themeProvider" Theme="ThemeService.Theme" IsDarkMode="ThemeService.IsDarkMode" />
+<MudDialogProvider FullWidth="true" MaxWidth="MaxWidth.Medium" />
+<MudSnackbarProvider />
+
 <Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
         <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
     </Found>
 </Router>
+
+@code {
+    private MudThemeProvider _themeProvider = null!;
+
+    protected override void OnInitialized()
+        => ThemeService.OnChange += StateHasChanged;
+
+    public void Dispose()
+        => ThemeService.OnChange -= StateHasChanged;
+}

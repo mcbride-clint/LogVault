@@ -1,35 +1,100 @@
 @page "/alerts"
 @inject ILogVaultApiClient Api
 @inject NavigationManager Nav
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
-<h1>Alert Rules</h1>
+<PageTitle>Alert Rules — LogVault</PageTitle>
 
-<a href="/alerts/new" class="btn btn-primary mb-3">New Alert Rule</a>
+<div class="d-flex justify-space-between align-center mb-6">
+    <div>
+        <MudText Typo="Typo.h5" Style="font-weight:700">Alert Rules</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">Email notifications when log events match your criteria</MudText>
+    </div>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               Href="/alerts/new">
+        New Rule
+    </MudButton>
+</div>
 
-@if (_loading) { <p>Loading...</p> }
-else if (_rules != null)
+@if (_loading)
 {
-    <table class="table table-hover">
-        <thead><tr><th>Name</th><th>Level</th><th>Expression</th><th>Throttle</th><th>Enabled</th><th>Last Fired</th><th></th></tr></thead>
-        <tbody>
-        @foreach (var rule in _rules)
-        {
-            <tr>
-                <td>@rule.Name</td>
-                <td>@rule.MinimumLevel</td>
-                <td><code>@Truncate(rule.FilterExpression, 40)</code></td>
-                <td>@rule.ThrottleMinutes min</td>
-                <td>@(rule.IsEnabled ? "Yes" : "No")</td>
-                <td>@(rule.LastFiredAt?.ToLocalTime().ToString("MM/dd HH:mm") ?? "Never")</td>
-                <td>
-                    <a href="/alerts/@rule.Id" class="btn btn-sm btn-outline-primary">Edit</a>
-                    <button class="btn btn-sm btn-outline-danger" @onclick="() => Delete(rule.Id)">Delete</button>
-                </td>
-            </tr>
-        }
-        </tbody>
-    </table>
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
 }
+
+<MudPaper Elevation="2" Style="border-radius:12px; overflow:hidden">
+    <MudTable T="AlertRuleDto"
+              Items="@(_rules ?? new())"
+              Dense="true"
+              Hover="true"
+              Elevation="0"
+              Loading="@_loading"
+              Style="background:transparent">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Level</MudTh>
+            <MudTh>Expression</MudTh>
+            <MudTh>Throttle</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Last Fired</MudTh>
+            <MudTh Style="text-align:right">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudText Typo="Typo.body2" Style="font-weight:500">@context.Name</MudText>
+            </MudTd>
+            <MudTd><LogLevelChip Level="@context.MinimumLevel" /></MudTd>
+            <MudTd>
+                <MudTooltip Text="@context.FilterExpression" Placement="Placement.Top">
+                    <MudText Typo="Typo.body2" Style="font-family:monospace; font-size:0.75rem; cursor:default">
+                        @Truncate(context.FilterExpression, 40)
+                    </MudText>
+                </MudTooltip>
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.body2">@context.ThrottleMinutes min</MudText>
+            </MudTd>
+            <MudTd>
+                @if (context.IsEnabled)
+                {
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Enabled</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Filled">Disabled</MudChip>
+                }
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    @(context.LastFiredAt?.ToLocalTime().ToString("MM/dd HH:mm") ?? "Never")
+                </MudText>
+            </MudTd>
+            <MudTd Style="text-align:right">
+                <MudTooltip Text="Edit">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Size="Size.Small"
+                                   Color="Color.Primary"
+                                   Href="@($"/alerts/{context.Id}")" />
+                </MudTooltip>
+                <MudTooltip Text="Delete">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Size="Size.Small"
+                                   Color="Color.Error"
+                                   OnClick="() => ConfirmDelete(context)" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <div class="pa-6 d-flex flex-column align-center mud-text-secondary">
+                <MudIcon Icon="@Icons.Material.Filled.NotificationsOff" Style="font-size:3rem; opacity:0.3" Class="mb-2" />
+                <MudText Typo="Typo.body1">No alert rules yet</MudText>
+                <MudText Typo="Typo.body2">Create your first rule to get notified about critical events.</MudText>
+            </div>
+        </NoRecordsContent>
+    </MudTable>
+</MudPaper>
 
 @code {
     private List<AlertRuleDto>? _rules;
@@ -41,10 +106,23 @@ else if (_rules != null)
         _loading = false;
     }
 
-    private async Task Delete(int id)
+    private async Task ConfirmDelete(AlertRuleDto rule)
     {
-        await Api.DeleteAlertAsync(id);
-        _rules = await Api.GetAlertsAsync();
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, "Delete Alert Rule" },
+            { x => x.Message, $"Delete \"{rule.Name}\"? This action cannot be undone." },
+            { x => x.ConfirmText, "Delete" }
+        };
+        var result = await DialogService.ShowAsync<ConfirmDialog>("Confirm", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall });
+        var dialogResult = await result.Result;
+        if (!dialogResult.Canceled)
+        {
+            await Api.DeleteAlertAsync(rule.Id);
+            _rules = await Api.GetAlertsAsync();
+            Snackbar.Add($"Alert rule \"{rule.Name}\" deleted.", Severity.Success);
+        }
     }
 
     private static string Truncate(string s, int max)

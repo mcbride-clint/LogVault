@@ -2,60 +2,131 @@
 @page "/"
 @inject ILogVaultApiClient Api
 
-<h1>Dashboard</h1>
+<PageTitle>Dashboard — LogVault</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-1" Style="font-weight:700">Dashboard</MudText>
+<MudText Typo="Typo.body2" Class="mud-text-secondary mb-6">Last 24 hours at a glance</MudText>
 
 @if (_loading)
 {
-    <p>Loading...</p>
+    <MudGrid>
+        @for (int i = 0; i < 4; i++)
+        {
+            <MudItem xs="12" sm="6" md="3">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="120px" Class="rounded-lg" />
+            </MudItem>
+        }
+    </MudGrid>
 }
 else if (_stats != null)
 {
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <h4>Events by Level (last 24h)</h4>
-            <table class="table table-sm">
-                <thead><tr><th>Level</th><th>Count</th></tr></thead>
-                <tbody>
-                @foreach (var lc in _stats.ByLevel)
-                {
-                    <tr>
-                        <td><span class="badge @GetLevelClass(lc.Level)">@lc.Level</span></td>
-                        <td>@lc.Count</td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-        <div class="col-md-6">
-            <h4>Events per Hour (last 24h)</h4>
-            @foreach (var h in _stats.ByHour.TakeLast(12))
-            {
-                <div style="font-size:0.8em">@h.Hour.ToLocalTime().ToString("HH:mm"): @h.Count</div>
-            }
-        </div>
-    </div>
+    @* Stat summary chips *@
+    <MudGrid Class="mb-6" Spacing="3">
+        @foreach (var lc in _stats.ByLevel.OrderByDescending(l => l.Count).Take(4))
+        {
+            <MudItem xs="6" sm="3">
+                <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center" Style=@($"border-radius:12px; border-top: 3px solid (GetLevelHex(lc.Level))")>
+                    <MudText Typo="Typo.h4" Style=@($"font-weight:700; color:{GetLevelHex(lc.Level)}")>
+                        @lc.Count.ToString("N0")
+                    </MudText>
+                    <LogLevelChip Level="@lc.Level" />
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
 
-    <div class="row">
-        <div class="col-12">
-            <h4>Recent Errors</h4>
-            @if (_recentErrors != null)
-            {
-                <table class="table table-sm table-hover">
-                    <thead><tr><th>Time</th><th>App</th><th>Message</th></tr></thead>
-                    <tbody>
-                    @foreach (var ev in _recentErrors.Items)
+    <MudGrid Spacing="3">
+        @* Events by level *@
+        <MudItem xs="12" md="5">
+            <MudPaper Elevation="2" Class="pa-4" Style="border-radius:12px">
+                <MudText Typo="Typo.subtitle1" Class="mb-3">Events by Level</MudText>
+                <MudTable Items="_stats.ByLevel" Dense="true" Hover="true" Elevation="0"
+                          Style="background:transparent">
+                    <HeaderContent>
+                        <MudTh>Level</MudTh>
+                        <MudTh Style="text-align:right">Count</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd><LogLevelChip Level="@context.Level" /></MudTd>
+                        <MudTd Style="text-align:right; font-weight:600">@context.Count.ToString("N0")</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        </MudItem>
+
+        @* Hourly sparkline *@
+        <MudItem xs="12" md="7">
+            <MudPaper Elevation="2" Class="pa-4" Style="border-radius:12px">
+                <MudText Typo="Typo.subtitle1" Class="mb-3">Events per Hour (last 12h)</MudText>
+                @{
+                    var hours = _stats.ByHour.TakeLast(12).ToList();
+                    var maxCount = hours.Any() ? hours.Max(h => h.Count) : 1;
+                }
+                <div class="d-flex align-end gap-1" style="height:80px">
+                    @foreach (var h in hours)
                     {
-                        <tr>
-                            <td>@ev.Timestamp.ToLocalTime().ToString("MM/dd HH:mm")</td>
-                            <td>@ev.SourceApplication</td>
-                            <td>@Truncate(ev.RenderedMessage, 80)</td>
-                        </tr>
+                        var pct = maxCount > 0 ? (double)h.Count / maxCount * 100 : 0;
+                        <div class="d-flex flex-column align-center" style="flex:1">
+                            <MudTooltip Text="@($"{h.Hour.ToLocalTime():HH:mm}: {h.Count:N0} events")">
+                                <div style="width:100%; background:var(--mud-palette-primary); opacity:0.8;
+                                            border-radius:3px 3px 0 0; height:@(Math.Max(pct, 2))%;
+                                            min-height:3px; cursor:default">
+                                </div>
+                            </MudTooltip>
+                        </div>
                     }
-                    </tbody>
-                </table>
-            }
-        </div>
-    </div>
+                </div>
+                <div class="d-flex justify-space-between mt-1">
+                    @if (hours.Any())
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@hours.First().Hour.ToLocalTime().ToString("HH:mm")</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@hours.Last().Hour.ToLocalTime().ToString("HH:mm")</MudText>
+                    }
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        @* Recent errors *@
+        <MudItem xs="12">
+            <MudPaper Elevation="2" Class="pa-4" Style="border-radius:12px">
+                <div class="d-flex justify-space-between align-center mb-3">
+                    <MudText Typo="Typo.subtitle1">Recent Errors</MudText>
+                    <MudButton Href="/logs" Variant="Variant.Text" Color="Color.Primary"
+                               EndIcon="@Icons.Material.Filled.ArrowForward" Size="Size.Small">
+                        View all
+                    </MudButton>
+                </div>
+                @if (_recentErrors?.Items.Count > 0)
+                {
+                    <MudTable Items="_recentErrors.Items" Dense="true" Hover="true" Elevation="0"
+                              Style="background:transparent">
+                        <HeaderContent>
+                            <MudTh>Time</MudTh>
+                            <MudTh>Application</MudTh>
+                            <MudTh>Message</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd Style="white-space:nowrap; font-size:0.8rem">
+                                @context.Timestamp.ToLocalTime().ToString("MM/dd HH:mm")
+                            </MudTd>
+                            <MudTd>
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                                    @context.SourceApplication
+                                </MudChip>
+                            </MudTd>
+                            <MudTd Style="font-size:0.825rem">@Truncate(context.RenderedMessage, 120)</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Success" Dense="true" Variant="Variant.Text">
+                        No errors in the last 24 hours.
+                    </MudAlert>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
 }
 
 @code {
@@ -75,14 +146,15 @@ else if (_stats != null)
         _loading = false;
     }
 
-    private static string GetLevelClass(string level) => level switch
+    private static string GetLevelHex(string level) => level switch
     {
-        "Fatal" => "bg-dark",
-        "Error" => "bg-danger",
-        "Warning" => "bg-warning text-dark",
-        "Information" => "bg-info text-dark",
-        "Debug" => "bg-secondary",
-        _ => "bg-light text-dark"
+        "Fatal"       => "#37474F",
+        "Error"       => "#F44336",
+        "Warning"     => "#FF9800",
+        "Information" => "#03A9F4",
+        "Debug"       => "#9E9E9E",
+        "Verbose"     => "#BDBDBD",
+        _             => "#9E9E9E"
     };
 
     private static string Truncate(string s, int max)

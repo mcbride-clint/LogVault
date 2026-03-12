@@ -2,70 +2,170 @@
 @page "/alerts/{Id:int}"
 @inject ILogVaultApiClient Api
 @inject NavigationManager Nav
+@inject ISnackbar Snackbar
 
-<h1>@(Id == 0 ? "New Alert Rule" : "Edit Alert Rule")</h1>
+<PageTitle>@(Id == 0 ? "New Alert Rule" : "Edit Alert Rule") — LogVault</PageTitle>
 
-@if (_loading) { <p>Loading...</p> }
+<div class="d-flex align-center gap-2 mb-6">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/alerts" />
+    <div>
+        <MudText Typo="Typo.h5" Style="font-weight:700">
+            @(Id == 0 ? "New Alert Rule" : "Edit Alert Rule")
+        </MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+            @(Id == 0 ? "Configure when to receive email notifications" : "Update this alert rule's settings")
+        </MudText>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
 else
 {
-    <div style="max-width:600px">
-        <div class="mb-3">
-            <label class="form-label">Name</label>
-            <input class="form-control" @bind="_name" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Minimum Level</label>
-            <select class="form-select" @bind="_level">
-                <option>Verbose</option><option>Debug</option><option>Information</option>
-                <option>Warning</option><option>Error</option><option>Fatal</option>
-            </select>
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Source Application Filter (optional)</label>
-            <input class="form-control" @bind="_appFilter" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Filter Expression</label>
-            <textarea class="form-control" rows="3" @bind="_expr"></textarea>
-            <small class="text-muted">Examples: level >= Error | message contains "timeout" | app == "MyApp" AND level >= Warning</small>
-        </div>
-        <div class="mb-3">
-            <button class="btn btn-sm btn-outline-secondary" @onclick="TestExpr">Test Expression</button>
-            @if (_testResult != null)
-            {
-                <span class="ms-2 @(_testResult.Valid ? "text-success" : "text-danger")">
-                    @(_testResult.Valid ? "Valid" : _testResult.Error)
-                </span>
-            }
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Throttle (minutes between emails)</label>
-            <input type="number" class="form-control" @bind="_throttle" min="1" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Recipients</label>
-            @foreach (var (email, i) in _recipients.Select((e, i) => (e, i)))
-            {
-                <div class="input-group mb-1">
-                    <input class="form-control" value="@email" @oninput="e => _recipients[i] = e.Value?.ToString() ?? string.Empty" />
-                    <button class="btn btn-outline-danger" @onclick="() => _recipients.RemoveAt(i)">Remove</button>
+    <MudGrid>
+        <MudItem xs="12" md="7">
+            <MudPaper Elevation="2" Class="pa-6" Style="border-radius:12px">
+                <MudText Typo="Typo.subtitle1" Class="mb-4">Rule Configuration</MudText>
+
+                <MudTextField @bind-Value="_name"
+                              Label="Rule Name"
+                              Variant="Variant.Outlined"
+                              Class="mb-4"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Label"
+                              Required="true" />
+
+                <MudSelect T="string" @bind-Value="_level"
+                           Label="Minimum Level"
+                           Variant="Variant.Outlined"
+                           Class="mb-4"
+                           Adornment="Adornment.Start"
+                           AdornmentIcon="@Icons.Material.Filled.FilterList">
+                    <MudSelectItem Value='"Verbose"'>Verbose</MudSelectItem>
+                    <MudSelectItem Value='"Debug"'>Debug</MudSelectItem>
+                    <MudSelectItem Value='"Information"'>Information</MudSelectItem>
+                    <MudSelectItem Value='"Warning"'>Warning</MudSelectItem>
+                    <MudSelectItem Value='"Error"'>Error</MudSelectItem>
+                    <MudSelectItem Value='"Fatal"'>Fatal</MudSelectItem>
+                </MudSelect>
+
+                <MudTextField @bind-Value="_appFilter"
+                              Label="Source Application Filter"
+                              HelperText="Leave blank to match all applications"
+                              Variant="Variant.Outlined"
+                              Class="mb-4"
+                              Clearable="true"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Apps" />
+
+                <MudTextField @bind-Value="_expr"
+                              Label="Filter Expression"
+                              Variant="Variant.Outlined"
+                              Lines="3"
+                              Class="mb-2"
+                              HelperText='Examples: level >= Error | message contains "timeout" | app == "MyApp" AND level >= Warning' />
+
+                <div class="d-flex align-center gap-2 mb-4">
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Filled.PlayArrow"
+                               Size="Size.Small"
+                               OnClick="TestExpr">
+                        Test Expression
+                    </MudButton>
+                    @if (_testResult != null)
+                    {
+                        @if (_testResult.Valid)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small"
+                                     Icon="@Icons.Material.Filled.Check">Valid</MudChip>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Error" Dense="true" Variant="Variant.Text" Class="flex-1">
+                                @_testResult.Error
+                            </MudAlert>
+                        }
+                    }
                 </div>
+
+                <MudNumericField T="int" @bind-Value="_throttle"
+                                 Label="Throttle (minutes between emails)"
+                                 Variant="Variant.Outlined"
+                                 Min="1"
+                                 Class="mb-4"
+                                 Adornment="Adornment.Start"
+                                 AdornmentIcon="@Icons.Material.Filled.Timer" />
+
+                <MudSwitch @bind-Value="_enabled"
+                           Color="Color.Primary"
+                           Label="@(_enabled ? "Rule Enabled" : "Rule Disabled")"
+                           Class="mb-2" />
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="5">
+            <MudPaper Elevation="2" Class="pa-6" Style="border-radius:12px">
+                <div class="d-flex justify-space-between align-center mb-4">
+                    <MudText Typo="Typo.subtitle1">Recipients</MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.PersonAdd"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="() => _recipients.Add(string.Empty)"
+                                   Title="Add recipient" />
+                </div>
+
+                @if (_recipients.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
+                        No recipients added. Click + to add an email address.
+                    </MudText>
+                }
+                else
+                {
+                    @foreach (var (email, i) in _recipients.Select((e, i) => (e, i)))
+                    {
+                        <div class="d-flex align-center gap-1 mb-2">
+                            <MudTextField Value="@email"
+                                          ValueChanged="@((string v) => _recipients[i] = v)"
+                                          Label="@($"Recipient {i + 1}")"
+                                          Variant="Variant.Outlined"
+                                          Dense="true"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.Email"
+                                          Class="flex-1" />
+                            <MudIconButton Icon="@Icons.Material.Filled.RemoveCircleOutline"
+                                           Color="Color.Error"
+                                           Size="Size.Small"
+                                           OnClick="() => _recipients.RemoveAt(i)" />
+                        </div>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12">
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
             }
-            <button class="btn btn-sm btn-outline-secondary" @onclick="() => _recipients.Add(string.Empty)">Add Recipient</button>
-        </div>
-        <div class="mb-3 form-check">
-            <input type="checkbox" class="form-check-input" @bind="_enabled" id="enabled" />
-            <label class="form-check-label" for="enabled">Enabled</label>
-        </div>
-
-        @if (!string.IsNullOrEmpty(_error))
-        {
-            <div class="alert alert-danger">@_error</div>
-        }
-
-        <button class="btn btn-primary" @onclick="Save">Save</button>
-        <a href="/alerts" class="btn btn-secondary ms-2">Cancel</a>
-    </div>
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Save"
+                           OnClick="Save"
+                           Disabled="@_saving">
+                    @(_saving ? "Saving..." : "Save Rule")
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Href="/alerts">
+                    Cancel
+                </MudButton>
+            </div>
+        </MudItem>
+    </MudGrid>
 }
 
 @code {
@@ -79,6 +179,7 @@ else
     private List<string> _recipients = new();
     private bool _enabled = true;
     private bool _loading = true;
+    private bool _saving;
     private string? _error;
     private TestExpressionResult? _testResult;
 
@@ -110,21 +211,29 @@ else
     private async Task Save()
     {
         _error = null;
-        var request = new AlertRuleRequest(
-            _name, _expr, _level,
-            string.IsNullOrEmpty(_appFilter) ? null : _appFilter,
-            _throttle, _enabled,
-            _recipients.Where(r => !string.IsNullOrWhiteSpace(r)).ToList());
+        _saving = true;
+        try
+        {
+            var request = new AlertRuleRequest(
+                _name, _expr, _level,
+                string.IsNullOrEmpty(_appFilter) ? null : _appFilter,
+                _throttle, _enabled,
+                _recipients.Where(r => !string.IsNullOrWhiteSpace(r)).ToList());
 
-        AlertRuleDto? result;
-        if (Id == 0)
-            result = await Api.CreateAlertAsync(request);
-        else
-            result = await Api.UpdateAlertAsync(Id, request);
+            AlertRuleDto? result;
+            if (Id == 0)
+                result = await Api.CreateAlertAsync(request);
+            else
+                result = await Api.UpdateAlertAsync(Id, request);
 
-        if (result != null)
-            Nav.NavigateTo("/alerts");
-        else
-            _error = "Failed to save alert rule.";
+            if (result != null)
+                Nav.NavigateTo("/alerts");
+            else
+                _error = "Failed to save alert rule.";
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 }

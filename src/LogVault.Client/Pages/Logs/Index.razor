@@ -2,132 +2,182 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @inject ILogVaultApiClient Api
 @inject NavigationManager Nav
+@inject IDialogService DialogService
 @implements IAsyncDisposable
 
-<h1>Log Explorer</h1>
+<PageTitle>Log Explorer — LogVault</PageTitle>
 
-<div class="row mb-3">
-    <div class="col-md-3">
-        <label class="form-label">From</label>
-        <input type="datetime-local" class="form-control" @bind="_from" disabled="@_liveTailActive" />
-    </div>
-    <div class="col-md-3">
-        <label class="form-label">To</label>
-        <input type="datetime-local" class="form-control" @bind="_to" disabled="@_liveTailActive" />
-    </div>
-    <div class="col-md-2">
-        <label class="form-label">Level</label>
-        <select class="form-select" @bind="_level" disabled="@_liveTailActive">
-            <option value="">Any</option>
-            <option>Verbose</option>
-            <option>Debug</option>
-            <option>Information</option>
-            <option>Warning</option>
-            <option>Error</option>
-            <option>Fatal</option>
-        </select>
-    </div>
-    <div class="col-md-2">
-        <label class="form-label">Application</label>
-        <input class="form-control" @bind="_app" placeholder="Any" disabled="@_liveTailActive" />
-    </div>
-    <div class="col-md-2">
-        <label class="form-label">Search</label>
-        <input class="form-control" @bind="_search" placeholder="message..." disabled="@_liveTailActive" />
-    </div>
-</div>
+<MudText Typo="Typo.h5" Class="mb-1" Style="font-weight:700">Log Explorer</MudText>
+<MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">Search, filter, and tail your log stream</MudText>
 
-<div class="mb-3 d-flex gap-2">
-    <button class="btn btn-primary" @onclick="Search" disabled="@_liveTailActive">Search</button>
-    <button class="btn @(_liveTailActive ? "btn-danger" : "btn-outline-success")" @onclick="ToggleLiveTail">
-        @(_liveTailActive ? "Stop Live Tail" : "Live Tail")
-    </button>
-    @if (_liveTailActive)
-    {
-        <span class="badge bg-success align-self-center">LIVE</span>
-    }
-</div>
+@* Filter bar *@
+<MudPaper Elevation="2" Class="pa-4 mb-4" Style="border-radius:12px">
+    <MudGrid Spacing="2">
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="From"
+                               @bind-Date="_from"
+                               Variant="Variant.Outlined"
+                               Disabled="@_liveTailActive"
+                               DateFormat="yyyy-MM-dd HH:mm"
+                               Clearable="true"
+                               Dense="true" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="To"
+                               @bind-Date="_to"
+                               Variant="Variant.Outlined"
+                               Disabled="@_liveTailActive"
+                               DateFormat="yyyy-MM-dd HH:mm"
+                               Clearable="true"
+                               Dense="true" />
+        </MudItem>
+        <MudItem xs="12" sm="4" md="2">
+            <MudSelect T="string" Label="Level" @bind-Value="_level"
+                       Variant="Variant.Outlined"
+                       Disabled="@_liveTailActive"
+                       Clearable="true"
+                       Dense="true">
+                <MudSelectItem Value='""'>Any</MudSelectItem>
+                <MudSelectItem Value='"Verbose"'>Verbose</MudSelectItem>
+                <MudSelectItem Value='"Debug"'>Debug</MudSelectItem>
+                <MudSelectItem Value='"Information"'>Information</MudSelectItem>
+                <MudSelectItem Value='"Warning"'>Warning</MudSelectItem>
+                <MudSelectItem Value='"Error"'>Error</MudSelectItem>
+                <MudSelectItem Value='"Fatal"'>Fatal</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4" md="2">
+            <MudTextField @bind-Value="_app"
+                          Label="Application"
+                          Variant="Variant.Outlined"
+                          Placeholder="Any"
+                          Disabled="@_liveTailActive"
+                          Clearable="true"
+                          Dense="true"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Apps" />
+        </MudItem>
+        <MudItem xs="12" sm="4" md="2">
+            <MudTextField @bind-Value="_search"
+                          Label="Search"
+                          Variant="Variant.Outlined"
+                          Placeholder="message..."
+                          Disabled="@_liveTailActive"
+                          Clearable="true"
+                          Dense="true"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search" />
+        </MudItem>
+    </MudGrid>
 
-@if (_loading)
-{
-    <p>Searching...</p>
-}
-else
-{
-    <table class="table table-sm table-hover">
-        <thead>
-            <tr>
-                <th>Time</th>
-                <th>Level</th>
-                <th>Application</th>
-                <th>Message</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-        @foreach (var ev in _events)
+    <div class="d-flex align-center gap-2 mt-3 flex-wrap">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Search"
+                   OnClick="Search"
+                   Disabled="@_liveTailActive"
+                   Size="Size.Small">
+            Search
+        </MudButton>
+        <MudButton Variant="@(_liveTailActive ? Variant.Filled : Variant.Outlined)"
+                   Color="@(_liveTailActive ? Color.Error : Color.Success)"
+                   StartIcon="@(_liveTailActive ? Icons.Material.Filled.Stop : Icons.Material.Filled.PlayArrow)"
+                   OnClick="ToggleLiveTail"
+                   Size="Size.Small">
+            @(_liveTailActive ? "Stop Live Tail" : "Live Tail")
+        </MudButton>
+        @if (_liveTailActive)
         {
-            <tr @onclick="() => SelectEvent(ev)" style="cursor:pointer">
-                <td style="white-space:nowrap">@ev.Timestamp.ToLocalTime().ToString("MM/dd HH:mm:ss")</td>
-                <td><span class="badge @GetLevelClass(ev.Level)">@ev.Level</span></td>
-                <td>@ev.SourceApplication</td>
-                <td>@Truncate(ev.RenderedMessage, 100)</td>
-                <td>@(ev.Exception != null ? "!" : "")</td>
-            </tr>
+            <MudChip T="string" Color="Color.Success" Size="Size.Small"
+                     Icon="@Icons.Material.Filled.FiberManualRecord"
+                     Style="animation: pulse 1.5s infinite">
+                LIVE
+            </MudChip>
         }
-        </tbody>
-    </table>
+        <MudSpacer />
+        @if (_result != null && !_liveTailActive)
+        {
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                @_result.TotalCount.ToString("N0") events found
+            </MudText>
+        }
+    </div>
+</MudPaper>
+
+@* Results table *@
+<MudPaper Elevation="2" Style="border-radius:12px; overflow:hidden">
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+
+    <MudTable T="LogEventDto"
+              Items="@_events"
+              Dense="true"
+              Hover="true"
+              Elevation="0"
+              OnRowClick="OnRowClick"
+              RowStyle="cursor:pointer"
+              Loading="@_loading"
+              LoadingProgressColor="Color.Primary"
+              Style="background:transparent">
+        <HeaderContent>
+            <MudTh Style="white-space:nowrap">Time</MudTh>
+            <MudTh>Level</MudTh>
+            <MudTh>Application</MudTh>
+            <MudTh>Message</MudTh>
+            <MudTh Style="width:32px"></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd Style="white-space:nowrap; font-size:0.8rem; font-family:monospace">
+                @context.Timestamp.ToLocalTime().ToString("MM/dd HH:mm:ss")
+            </MudTd>
+            <MudTd><LogLevelChip Level="@context.Level" /></MudTd>
+            <MudTd>
+                <MudText Typo="Typo.body2" Style="font-size:0.825rem">@context.SourceApplication</MudText>
+            </MudTd>
+            <MudTd Style="max-width:600px">
+                <MudText Typo="Typo.body2" Style="font-size:0.825rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
+                    @Truncate(context.RenderedMessage, 120)
+                </MudText>
+            </MudTd>
+            <MudTd>
+                @if (context.Exception != null)
+                {
+                    <MudTooltip Text="Has exception">
+                        <MudIcon Icon="@Icons.Material.Filled.BugReport" Color="Color.Error" Size="Size.Small" />
+                    </MudTooltip>
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4 mud-text-secondary">No log events found.</MudText>
+        </NoRecordsContent>
+    </MudTable>
 
     @if (!_liveTailActive && _result != null)
     {
-        <div class="d-flex gap-2 align-items-center">
-            <span>Page @_page of @((_result.TotalCount + _pageSize - 1) / _pageSize) (@_result.TotalCount total)</span>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="PrevPage" disabled="@(_page <= 1)">Prev</button>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="NextPage"
-                disabled="@(_page * _pageSize >= _result.TotalCount)">Next</button>
-        </div>
-    }
-}
-
-@if (_selectedEvent != null)
-{
-    <div class="modal show d-block" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Event Detail — @_selectedEvent.Id</h5>
-                    <button class="btn-close" @onclick="() => _selectedEvent = null"></button>
-                </div>
-                <div class="modal-body">
-                    <dl class="row">
-                        <dt class="col-3">Time</dt><dd class="col-9">@_selectedEvent.Timestamp.ToLocalTime()</dd>
-                        <dt class="col-3">Level</dt><dd class="col-9"><span class="badge @GetLevelClass(_selectedEvent.Level)">@_selectedEvent.Level</span></dd>
-                        <dt class="col-3">Application</dt><dd class="col-9">@_selectedEvent.SourceApplication</dd>
-                        <dt class="col-3">Environment</dt><dd class="col-9">@_selectedEvent.SourceEnvironment</dd>
-                        <dt class="col-3">Message</dt><dd class="col-9">@_selectedEvent.RenderedMessage</dd>
-                        @if (_selectedEvent.TraceId != null)
-                        {
-                            <dt class="col-3">Trace ID</dt><dd class="col-9"><code>@_selectedEvent.TraceId</code></dd>
-                        }
-                    </dl>
-                    @if (_selectedEvent.Exception != null)
-                    {
-                        <h6>Exception</h6>
-                        <pre style="font-size:0.8em;overflow:auto;background:#f8f8f8;padding:8px">@_selectedEvent.Exception</pre>
-                    }
-                    <h6>Properties</h6>
-                    <pre style="font-size:0.8em;overflow:auto;background:#f8f8f8;padding:8px">@_selectedEvent.PropertiesJson</pre>
-                </div>
+        <div class="d-flex align-center justify-space-between pa-3" style="border-top:1px solid var(--mud-palette-table-lines)">
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                Page @_page of @TotalPages (@_result.TotalCount.ToString("N0") total)
+            </MudText>
+            <div class="d-flex gap-2">
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft"
+                               Size="Size.Small"
+                               Disabled="@(_page <= 1)"
+                               OnClick="PrevPage" />
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronRight"
+                               Size="Size.Small"
+                               Disabled="@(_page >= TotalPages)"
+                               OnClick="NextPage" />
             </div>
         </div>
-    </div>
-    <div class="modal-backdrop show"></div>
-}
+    }
+</MudPaper>
 
 @code {
     private List<LogEventDto> _events = new();
     private PagedResult<LogEventDto>? _result;
-    private LogEventDto? _selectedEvent;
     private bool _loading;
     private bool _liveTailActive;
     private HubConnection? _hubConnection;
@@ -139,6 +189,8 @@ else
     private string _search = "";
     private int _page = 1;
     private int _pageSize = 50;
+
+    private int TotalPages => _result == null ? 1 : Math.Max(1, (_result.TotalCount + _pageSize - 1) / _pageSize);
 
     protected override async Task OnInitializedAsync() => await Search();
 
@@ -157,16 +209,20 @@ else
         _loading = false;
     }
 
+    private async Task OnRowClick(TableRowClickEventArgs<LogEventDto> args)
+    {
+        var parameters = new DialogParameters<LogDetailDialog>
+        {
+            { x => x.Event, args.Item }
+        };
+        await DialogService.ShowAsync<LogDetailDialog>("Event Detail", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+    }
+
     private async Task ToggleLiveTail()
     {
-        if (_liveTailActive)
-        {
-            await StopLiveTailAsync();
-        }
-        else
-        {
-            await StartLiveTailAsync();
-        }
+        if (_liveTailActive) await StopLiveTailAsync();
+        else await StartLiveTailAsync();
     }
 
     private async Task StartLiveTailAsync()
@@ -205,20 +261,8 @@ else
         }
     }
 
-    private void SelectEvent(LogEventDto ev) => _selectedEvent = ev;
-
     private async Task PrevPage() { if (_page > 1) { _page--; await Search(); } }
-    private async Task NextPage() { _page++; await Search(); }
-
-    private static string GetLevelClass(string level) => level switch
-    {
-        "Fatal" => "bg-dark",
-        "Error" => "bg-danger",
-        "Warning" => "bg-warning text-dark",
-        "Information" => "bg-info text-dark",
-        "Debug" => "bg-secondary",
-        _ => "bg-light text-dark"
-    };
+    private async Task NextPage() { if (_page < TotalPages) { _page++; await Search(); } }
 
     private static string Truncate(string s, int max)
         => s.Length <= max ? s : s[..max] + "…";

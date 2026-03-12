@@ -1,0 +1,12 @@
+@inherits LayoutComponentBase
+@inject ThemeService ThemeService
+@implements IDisposable
+
+<MudThemeProvider Theme="ThemeService.Theme" IsDarkMode="ThemeService.IsDarkMode" />
+
+@Body
+
+@code {
+    protected override void OnInitialized() => ThemeService.OnChange += StateHasChanged;
+    public void Dispose() => ThemeService.OnChange -= StateHasChanged;
+}

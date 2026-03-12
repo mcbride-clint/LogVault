@@ -1,53 +1,38 @@
 @inject AuthStateService Auth
 @implements IDisposable
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">LogVault</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-    </div>
-</div>
+<MudNavMenu Color="Color.Primary" Bordered="false" Class="pa-2">
+    <MudNavLink Href="dashboard" Match="NavLinkMatch.All"
+                Icon="@Icons.Material.Filled.Dashboard">
+        Dashboard
+    </MudNavLink>
+    <MudNavLink Href="logs"
+                Icon="@Icons.Material.Filled.List">
+        Log Explorer
+    </MudNavLink>
+    <MudNavLink Href="alerts"
+                Icon="@Icons.Material.Filled.NotificationsActive">
+        Alert Rules
+    </MudNavLink>
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="dashboard" Match="NavLinkMatch.All">
-                Dashboard
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="logs">
-                Log Explorer
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="alerts">
-                Alert Rules
-            </NavLink>
-        </div>
-        @if (Auth.IsAdmin)
-        {
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="admin/apikeys">
-                    API Keys
-                </NavLink>
-            </div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="admin/purge">
-                    Retention
-                </NavLink>
-            </div>
-        }
-    </nav>
-</div>
+    @if (Auth.IsAdmin)
+    {
+        <MudDivider Class="my-2" />
+        <MudText Typo="Typo.overline" Class="px-4 pb-1" Style="color: rgba(255,255,255,0.45); font-size:0.65rem; letter-spacing:0.1em">
+            ADMIN
+        </MudText>
+        <MudNavLink Href="admin/apikeys"
+                    Icon="@Icons.Material.Filled.VpnKey">
+            API Keys
+        </MudNavLink>
+        <MudNavLink Href="admin/purge"
+                    Icon="@Icons.Material.Filled.DeleteSweep">
+            Retention
+        </MudNavLink>
+    }
+</MudNavMenu>
 
 @code {
-    private bool collapseNavMenu = true;
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-    private void ToggleNavMenu() => collapseNavMenu = !collapseNavMenu;
-
     protected override void OnInitialized() => Auth.OnChange += StateHasChanged;
     public void Dispose() => Auth.OnChange -= StateHasChanged;
 }
