@@ -233,6 +233,7 @@ public class LogVaultApiClient : ILogVaultApiClient
         if (!string.IsNullOrEmpty(q.PropValue)) sb.Append($"propValue={Uri.EscapeDataString(q.PropValue)}&");
         if (!string.IsNullOrEmpty(q.Fts)) sb.Append($"fts={Uri.EscapeDataString(q.Fts)}&");
         if (!string.IsNullOrEmpty(q.PropOp)) sb.Append($"propOp={Uri.EscapeDataString(q.PropOp)}&");
+        if (!string.IsNullOrEmpty(q.Expr)) sb.Append($"expr={Uri.EscapeDataString(q.Expr)}&");
         sb.Append($"page={q.Page}&pageSize={q.PageSize}&desc={q.Desc}");
         return sb.ToString();
     }

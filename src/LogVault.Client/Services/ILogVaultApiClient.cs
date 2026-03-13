@@ -66,7 +66,8 @@ public record SavedFilterData(
     DateTimeOffset? From, DateTimeOffset? To,
     string? Level, string? App, string? Env,
     string? Q, string? TraceId, string? Prop, string? PropValue,
-    string? Fts = null);
+    string? Fts = null,
+    string? Expr = null);
 
 public record AppCountDto(string Application, int Count);
 public record DashboardWidgetDto(int Id, string WidgetType, string Title, int SortOrder, string ConfigJson);
@@ -85,4 +86,5 @@ public record LogQuery(
     string? Q = null, string? TraceId = null,
     string? Prop = null, string? PropValue = null,
     int Page = 1, int PageSize = 50, bool Desc = true,
-    string? Fts = null, string? PropOp = null);
+    string? Fts = null, string? PropOp = null,
+    string? Expr = null);

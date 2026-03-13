@@ -14,14 +14,29 @@
 
 @* Filter bar *@
 <MudPaper Elevation="2" Class="pa-4 mb-4" Style="border-radius:12px">
-    <MudGrid Spacing="2">
+
+    @* Mode toggle header *@
+    <div class="d-flex align-center justify-space-between mb-3">
+        <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="text-transform:uppercase;letter-spacing:.05em">Filters</MudText>
+        <MudToggleGroup T="string" @bind-Value="_filterMode" Size="Size.Small" Dense="true" Color="Color.Primary">
+            <MudToggleItem Value='"form"'>
+                <MudIcon Icon="@Icons.Material.Filled.Tune" Size="Size.Small" Class="mr-1" />Form
+            </MudToggleItem>
+            <MudToggleItem Value='"expr"'>
+                <MudIcon Icon="@Icons.Material.Filled.Code" Size="Size.Small" Class="mr-1" />Expression
+            </MudToggleItem>
+        </MudToggleGroup>
+    </div>
+
+    @* Date range — always visible *@
+    <MudGrid Spacing="2" Class="mb-2">
         <MudItem xs="12" sm="6" md="3">
             <MudDatePicker Label="From"
                                @bind-Date="_from"
                                Variant="Variant.Outlined"
                                Disabled="@_liveTailActive"
                                DateFormat="yyyy-MM-dd HH:mm"
-                               Clearable="true" 
+                               Clearable="true"
                                Dense="true" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
@@ -33,79 +48,105 @@
                                Clearable="true"
                                Dense="true" />
         </MudItem>
-        <MudItem xs="12" sm="4" md="2">
-            <MudSelect T="string" Label="Level" @bind-Value="_level"
-                       Variant="Variant.Outlined"
-                       Disabled="@_liveTailActive"
-                       Clearable="true"
-                       Dense="true">
-                <MudSelectItem Value='""'>Any</MudSelectItem>
-                <MudSelectItem Value='"Verbose"'>Verbose</MudSelectItem>
-                <MudSelectItem Value='"Debug"'>Debug</MudSelectItem>
-                <MudSelectItem Value='"Information"'>Information</MudSelectItem>
-                <MudSelectItem Value='"Warning"'>Warning</MudSelectItem>
-                <MudSelectItem Value='"Error"'>Error</MudSelectItem>
-                <MudSelectItem Value='"Fatal"'>Fatal</MudSelectItem>
-            </MudSelect>
-        </MudItem>
-        <MudItem xs="12" sm="4" md="2">
-            <MudTextField @bind-Value="_app"
-                          Label="Application"
-                          Variant="Variant.Outlined"
-                          Placeholder="Any"
-                          Disabled="@_liveTailActive"
-                          Clearable="true"
-                          Dense="true"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.Apps" />
-        </MudItem>
-        <MudItem xs="12" sm="4" md="2">
-            <MudTextField @bind-Value="_search"
-                          Label="Search"
-                          Variant="Variant.Outlined"
-                          Placeholder="message, exception, properties..."
-                          Disabled="@_liveTailActive"
-                          Clearable="true"
-                          Dense="true"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.Search"
-                          HelperText="Searches all fields — space-separated terms (AND)" />
-        </MudItem>
     </MudGrid>
 
-    <MudGrid Spacing="2" Class="mt-2">
-        <MudItem xs="12" sm="4" md="3">
-            <MudTextField @bind-Value="_propKey"
-                          Label="Property Key"
-                          Variant="Variant.Outlined"
-                          Placeholder="e.g. UserId"
-                          Disabled="@_liveTailActive"
-                          Clearable="true"
-                          Dense="true"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.DataObject" />
-        </MudItem>
-        <MudItem xs="12" sm="3" md="2">
-            <MudSelect T="string" @bind-Value="_propOp"
-                       Label="Operator"
-                       Variant="Variant.Outlined"
-                       Disabled="@_liveTailActive"
-                       Dense="true">
-                <MudSelectItem Value='"Contains"'>Contains</MudSelectItem>
-                <MudSelectItem Value='"Equals"'>= Equals</MudSelectItem>
-                <MudSelectItem Value='"NotEquals"'>≠ Not equals</MudSelectItem>
-            </MudSelect>
-        </MudItem>
-        <MudItem xs="12" sm="5" md="3">
-            <MudTextField @bind-Value="_propValue"
-                          Label="Property Value"
-                          Variant="Variant.Outlined"
-                          Placeholder="e.g. 42"
-                          Disabled="@(string.IsNullOrEmpty(_propKey) || _liveTailActive)"
-                          Clearable="true"
-                          Dense="true" />
-        </MudItem>
-    </MudGrid>
+    @* Form mode *@
+    @if (_filterMode == "form")
+    {
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="4" md="2">
+                <MudSelect T="string" Label="Level" @bind-Value="_level"
+                           Variant="Variant.Outlined"
+                           Disabled="@_liveTailActive"
+                           Clearable="true"
+                           Dense="true">
+                    <MudSelectItem Value='""'>Any</MudSelectItem>
+                    <MudSelectItem Value='"Verbose"'>Verbose</MudSelectItem>
+                    <MudSelectItem Value='"Debug"'>Debug</MudSelectItem>
+                    <MudSelectItem Value='"Information"'>Information</MudSelectItem>
+                    <MudSelectItem Value='"Warning"'>Warning</MudSelectItem>
+                    <MudSelectItem Value='"Error"'>Error</MudSelectItem>
+                    <MudSelectItem Value='"Fatal"'>Fatal</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4" md="2">
+                <MudTextField @bind-Value="_app"
+                              Label="Application"
+                              Variant="Variant.Outlined"
+                              Placeholder="Any"
+                              Disabled="@_liveTailActive"
+                              Clearable="true"
+                              Dense="true"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Apps" />
+            </MudItem>
+            <MudItem xs="12" sm="4" md="4">
+                <MudTextField @bind-Value="_search"
+                              Label="Search"
+                              Variant="Variant.Outlined"
+                              Placeholder="message, exception, properties..."
+                              Disabled="@_liveTailActive"
+                              Clearable="true"
+                              Dense="true"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              HelperText="Searches all fields — space-separated terms (AND)" />
+            </MudItem>
+        </MudGrid>
+
+        <MudGrid Spacing="2" Class="mt-2">
+            <MudItem xs="12" sm="4" md="3">
+                <MudTextField @bind-Value="_propKey"
+                              Label="Property Key"
+                              Variant="Variant.Outlined"
+                              Placeholder="e.g. UserId"
+                              Disabled="@_liveTailActive"
+                              Clearable="true"
+                              Dense="true"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.DataObject" />
+            </MudItem>
+            <MudItem xs="12" sm="3" md="2">
+                <MudSelect T="string" @bind-Value="_propOp"
+                           Label="Operator"
+                           Variant="Variant.Outlined"
+                           Disabled="@_liveTailActive"
+                           Dense="true">
+                    <MudSelectItem Value='"Contains"'>Contains</MudSelectItem>
+                    <MudSelectItem Value='"Equals"'>= Equals</MudSelectItem>
+                    <MudSelectItem Value='"NotEquals"'>≠ Not equals</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="5" md="3">
+                <MudTextField @bind-Value="_propValue"
+                              Label="Property Value"
+                              Variant="Variant.Outlined"
+                              Placeholder="e.g. 42"
+                              Disabled="@(string.IsNullOrEmpty(_propKey) || _liveTailActive)"
+                              Clearable="true"
+                              Dense="true" />
+            </MudItem>
+        </MudGrid>
+    }
+    else
+    {
+        @* Expression mode *@
+        <MudTextField @bind-Value="_exprText"
+                      Label="Query Expression"
+                      Variant="Variant.Outlined"
+                      Placeholder='level >= Warning AND app == "MyApp" AND prop:UserId == "42"'
+                      Disabled="@_liveTailActive"
+                      Lines="2"
+                      AutoGrow="true"
+                      Clearable="true"
+                      FullWidth="true"
+                      Style="font-family:monospace"
+                      HelperText='Fields: level, app, env, message, exception, trace, timestamp, prop:Key  •  Ops: ==  !=  contains  >=  <=  >  <  •  Combine with AND'
+                      Error="@(!string.IsNullOrEmpty(_exprError))"
+                      ErrorText="@_exprError"
+                      Immediate="false"
+                      OnKeyDown="OnExprKeyDown" />
+    }
 
     <div class="d-flex align-center gap-2 mt-3 flex-wrap">
         <MudButton Variant="Variant.Filled"
@@ -335,6 +376,11 @@
     private int _page = 1;
     private int _pageSize = 50;
 
+    // Expression mode
+    private string _filterMode = "form"; // "form" | "expr"
+    private string _exprText = "";
+    private string _exprError = "";
+
     private List<SavedFilterDto>? _savedFilters;
     private bool _showSaveDialog;
     private string _saveFilterName = "";
@@ -355,20 +401,49 @@
 
     private async Task Search()
     {
+        _exprError = "";
         _loading = true;
-        _result = await Api.QueryLogsAsync(new LogQuery(
-            From: _from.HasValue ? (DateTimeOffset?)new DateTimeOffset(_from.Value, TimeSpan.Zero) : null,
-            To: _to.HasValue ? (DateTimeOffset?)new DateTimeOffset(_to.Value, TimeSpan.Zero) : null,
-            Level: string.IsNullOrEmpty(_level) ? null : _level,
-            App: string.IsNullOrEmpty(_app) ? null : _app,
-            Fts: string.IsNullOrEmpty(_search) ? null : _search,
-            Prop: string.IsNullOrEmpty(_propKey) ? null : _propKey,
-            PropValue: string.IsNullOrEmpty(_propValue) ? null : _propValue,
-            PropOp: _propOp == "Contains" ? null : _propOp,
-            Page: _page, PageSize: _pageSize, Desc: true));
+
+        LogQuery query;
+        if (_filterMode == "expr")
+        {
+            query = new LogQuery(
+                From: _from.HasValue ? (DateTimeOffset?)new DateTimeOffset(_from.Value, TimeSpan.Zero) : null,
+                To: _to.HasValue ? (DateTimeOffset?)new DateTimeOffset(_to.Value, TimeSpan.Zero) : null,
+                Expr: string.IsNullOrWhiteSpace(_exprText) ? null : _exprText,
+                Page: _page, PageSize: _pageSize, Desc: true);
+        }
+        else
+        {
+            query = new LogQuery(
+                From: _from.HasValue ? (DateTimeOffset?)new DateTimeOffset(_from.Value, TimeSpan.Zero) : null,
+                To: _to.HasValue ? (DateTimeOffset?)new DateTimeOffset(_to.Value, TimeSpan.Zero) : null,
+                Level: string.IsNullOrEmpty(_level) ? null : _level,
+                App: string.IsNullOrEmpty(_app) ? null : _app,
+                Fts: string.IsNullOrEmpty(_search) ? null : _search,
+                Prop: string.IsNullOrEmpty(_propKey) ? null : _propKey,
+                PropValue: string.IsNullOrEmpty(_propValue) ? null : _propValue,
+                PropOp: _propOp == "Contains" ? null : _propOp,
+                Page: _page, PageSize: _pageSize, Desc: true);
+        }
+
+        _result = await Api.QueryLogsAsync(query);
+
+        // Surface expression parse errors returned by the API
+        if (_result == null && _filterMode == "expr" && !string.IsNullOrWhiteSpace(_exprText))
+            _exprError = "Invalid expression — check syntax and try again.";
 
         _events = _result?.Items ?? new();
         _loading = false;
+    }
+
+    private async Task OnExprKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            _page = 1;
+            await Search();
+        }
     }
 
     private void OpenSaveFilterDialog()
@@ -379,14 +454,22 @@
 
     private async Task SaveFilter()
     {
-        var data = new SavedFilterData(
-            From: _from.HasValue ? (DateTimeOffset?)new DateTimeOffset(_from.Value, TimeSpan.Zero) : null,
-            To: _to.HasValue ? (DateTimeOffset?)new DateTimeOffset(_to.Value, TimeSpan.Zero) : null,
-            Level: string.IsNullOrEmpty(_level) ? null : _level,
-            App: string.IsNullOrEmpty(_app) ? null : _app,
-            Env: null, Q: null,
-            TraceId: null, Prop: null, PropValue: null,
-            Fts: string.IsNullOrEmpty(_search) ? null : _search);
+        var data = _filterMode == "expr"
+            ? new SavedFilterData(
+                From: _from.HasValue ? (DateTimeOffset?)new DateTimeOffset(_from.Value, TimeSpan.Zero) : null,
+                To: _to.HasValue ? (DateTimeOffset?)new DateTimeOffset(_to.Value, TimeSpan.Zero) : null,
+                Level: null, App: null, Env: null, Q: null,
+                TraceId: null, Prop: null, PropValue: null,
+                Fts: null,
+                Expr: string.IsNullOrWhiteSpace(_exprText) ? null : _exprText)
+            : new SavedFilterData(
+                From: _from.HasValue ? (DateTimeOffset?)new DateTimeOffset(_from.Value, TimeSpan.Zero) : null,
+                To: _to.HasValue ? (DateTimeOffset?)new DateTimeOffset(_to.Value, TimeSpan.Zero) : null,
+                Level: string.IsNullOrEmpty(_level) ? null : _level,
+                App: string.IsNullOrEmpty(_app) ? null : _app,
+                Env: null, Q: null,
+                TraceId: null, Prop: null, PropValue: null,
+                Fts: string.IsNullOrEmpty(_search) ? null : _search);
 
         var json = JsonSerializer.Serialize(data, _jsonOpts);
         var result = await Api.CreateSavedFilterAsync(_saveFilterName, json);
@@ -410,12 +493,24 @@
 
             _from = data.From?.LocalDateTime;
             _to = data.To?.LocalDateTime;
-            _level = data.Level ?? "";
-            _app = data.App ?? "";
-            _search = data.Fts ?? data.Q ?? "";
-            _propKey = data.Prop ?? "";
-            _propValue = data.PropValue ?? "";
             _page = 1;
+
+            if (!string.IsNullOrWhiteSpace(data.Expr))
+            {
+                _filterMode = "expr";
+                _exprText = data.Expr;
+                _exprError = "";
+            }
+            else
+            {
+                _filterMode = "form";
+                _level = data.Level ?? "";
+                _app = data.App ?? "";
+                _search = data.Fts ?? data.Q ?? "";
+                _propKey = data.Prop ?? "";
+                _propValue = data.PropValue ?? "";
+            }
+
             Snackbar.Add($"Loaded filter \"{sf.Name}\".", Severity.Info);
             await Search();
         }

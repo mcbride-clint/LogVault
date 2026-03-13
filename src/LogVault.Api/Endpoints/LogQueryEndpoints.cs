@@ -1,3 +1,4 @@
+using LogVault.Application.Parsing;
 using LogVault.Domain.Models;
 using LogVault.Domain.Repositories;
 using LogVault.Domain.Services;
@@ -23,6 +24,7 @@ public static class LogQueryEndpoints
             string? traceId,
             string? fts,
             string? propOp,
+            string? expr,
             int page = 1,
             int pageSize = 50,
             string sort = "Timestamp",
@@ -31,18 +33,36 @@ public static class LogQueryEndpoints
             CancellationToken ct = default) =>
         {
             pageSize = Math.Min(pageSize, 500);
+
+            // Parse expression and merge with individual params (expression takes precedence)
+            ParsedQueryExpression? parsed = null;
+            if (!string.IsNullOrWhiteSpace(expr))
+            {
+                parsed = LogQueryExpressionParser.Parse(expr);
+                if (parsed.HasError)
+                    return Results.BadRequest(new { error = parsed.Error });
+            }
+
             var query = new LogEventQuery(
-                From: from, To: to,
-                MinLevel: ParseLevel(level), MaxLevel: ParseLevel(maxLevel),
-                SourceApplication: app, SourceEnvironment: env,
-                MessageContains: q, ExceptionContains: null,
-                PropertyKey: prop, PropertyValue: propValue,
-                TraceId: traceId,
+                From: parsed?.From ?? from,
+                To: parsed?.To ?? to,
+                MinLevel: parsed?.MinLevel ?? ParseLevel(level),
+                MaxLevel: parsed?.MaxLevel ?? ParseLevel(maxLevel),
+                SourceApplication: parsed?.SourceApplication ?? app,
+                SourceEnvironment: parsed?.SourceEnvironment ?? env,
+                MessageContains: parsed?.MessageContains ?? q,
+                ExceptionContains: parsed?.ExceptionContains,
+                PropertyKey: prop,
+                PropertyValue: propValue,
+                TraceId: parsed?.TraceId ?? traceId,
                 Page: page, PageSize: pageSize,
                 SortBy: sort, Descending: desc,
                 FullTextSearch: fts,
                 PropertyOp: Enum.TryParse<Domain.Models.PropertyFilterOp>(propOp, true, out var op)
-                    ? op : Domain.Models.PropertyFilterOp.Contains);
+                    ? op : Domain.Models.PropertyFilterOp.Contains,
+                PropertyConditions: parsed?.PropertyConditions.Count > 0
+                    ? parsed.PropertyConditions
+                    : null);
 
             var result = await repo.QueryAsync(query, ct);
             return Results.Ok(result);

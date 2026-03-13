@@ -146,6 +146,37 @@ public class EfLogEventRepository : ILogEventRepository
             }
         }
 
+        if (query.PropertyConditions is { Count: > 0 })
+        {
+            foreach (var pc in query.PropertyConditions)
+            {
+                var key = pc.Key;
+                var val = pc.Value;
+                switch (pc.Op)
+                {
+                    case Domain.Models.PropertyFilterOp.Equals:
+                        q = q.Where(e =>
+                            EF.Functions.Like(e.PropertiesJson, $"%\"{key}\":\"{val}\"%") ||
+                            EF.Functions.Like(e.PropertiesJson, $"%\"{key}\":{val},%") ||
+                            EF.Functions.Like(e.PropertiesJson, $"%\"{key}\":{val}}}%"));
+                        break;
+                    case Domain.Models.PropertyFilterOp.NotEquals:
+                        q = q.Where(e =>
+                            !EF.Functions.Like(e.PropertiesJson, $"%\"{key}\":\"{val}\"%") &&
+                            !EF.Functions.Like(e.PropertiesJson, $"%\"{key}\":{val},%") &&
+                            !EF.Functions.Like(e.PropertiesJson, $"%\"{key}\":{val}}}%") &&
+                            e.PropertiesJson.Contains($"\"{key}\""));
+                        break;
+                    case Domain.Models.PropertyFilterOp.Contains:
+                    default:
+                        q = q.Where(e => e.PropertiesJson.Contains($"\"{key}\""));
+                        if (!string.IsNullOrEmpty(val))
+                            q = q.Where(e => e.PropertiesJson.Contains(val));
+                        break;
+                }
+            }
+        }
+
         if (!string.IsNullOrEmpty(query.FullTextSearch))
         {
             foreach (var term in query.FullTextSearch.Split(' ', StringSplitOptions.RemoveEmptyEntries))

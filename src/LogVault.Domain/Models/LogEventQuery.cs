@@ -17,7 +17,8 @@ public record LogEventQuery(
     string SortBy,
     bool Descending,
     string? FullTextSearch = null,
-    PropertyFilterOp PropertyOp = PropertyFilterOp.Contains
+    PropertyFilterOp PropertyOp = PropertyFilterOp.Contains,
+    IReadOnlyList<PropertyCondition>? PropertyConditions = null
 )
 {
     public static LogEventQuery Default => new(
@@ -26,5 +27,6 @@ public record LogEventQuery(
         MessageContains: null, ExceptionContains: null,
         PropertyKey: null, PropertyValue: null, TraceId: null,
         Page: 1, PageSize: 50, SortBy: "Timestamp", Descending: true,
-        FullTextSearch: null, PropertyOp: PropertyFilterOp.Contains);
+        FullTextSearch: null, PropertyOp: PropertyFilterOp.Contains,
+        PropertyConditions: null);
 }
