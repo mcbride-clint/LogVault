@@ -1,3 +1,4 @@
+using Microsoft.JSInterop;
 using MudBlazor;
 
 namespace LogVault.Client.Services;
@@ -5,6 +6,26 @@ namespace LogVault.Client.Services;
 public class ThemeService
 {
     public bool IsDarkMode { get; private set; } = false;
+
+    private IJSRuntime? _js;
+    private bool _initialized;
+
+    public async Task InitializeAsync(IJSRuntime js)
+    {
+        if (_initialized) return;
+        _initialized = true;
+        _js = js;
+        IsDarkMode = await js.InvokeAsync<bool>("themeInterop.getPreferredTheme");
+        await js.InvokeVoidAsync("themeInterop.watchSystemTheme", DotNetObjectReference.Create(this));
+        OnChange?.Invoke();
+    }
+
+    [JSInvokable]
+    public void OnSystemThemeChanged(bool isDark)
+    {
+        IsDarkMode = isDark;
+        OnChange?.Invoke();
+    }
 
     public MudTheme Theme { get; } = new()
     {
@@ -84,9 +105,11 @@ public class ThemeService
 
     public event Action? OnChange;
 
-    public void ToggleDarkMode()
+    public async Task ToggleDarkModeAsync()
     {
         IsDarkMode = !IsDarkMode;
+        if (_js is not null)
+            await _js.InvokeVoidAsync("themeInterop.saveTheme", IsDarkMode);
         OnChange?.Invoke();
     }
 }
