@@ -1,0 +1,72 @@
+@page
+@model LogVault.Api.Pages.Alerts.IndexModel
+@{
+    ViewData["Title"] = "Alert Rules";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Alert Rules</h4>
+    <a asp-page="/Alerts/Edit" class="btn btn-sm btn-primary">+ New Rule</a>
+</div>
+
+@if (Model.Rules.Count == 0)
+{
+    <p class="text-muted">No alert rules configured.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Level</th>
+                    <th>Application</th>
+                    <th>Throttle</th>
+                    <th>Last Fired</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var rule in Model.Rules)
+                {
+                    <tr>
+                        <td>
+                            <a asp-page="/Alerts/Edit" asp-route-id="@rule.Id">@rule.Name</a>
+                        </td>
+                        <td><span class="badge @LogVault.Api.Pages.Logs.IndexModel.LevelBadgeClass(rule.MinimumLevel)">@rule.MinimumLevel</span></td>
+                        <td class="small">@(rule.SourceApplicationFilter ?? "—")</td>
+                        <td class="small">@rule.ThrottleMinutes min</td>
+                        <td class="small">@(rule.LastFiredAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "Never")</td>
+                        <td>
+                            @if (rule.IsEnabled)
+                            {
+                                <span class="badge bg-success">Enabled</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Disabled</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-danger"
+                                    onclick="lvDeleteAlert(@rule.Id, this)">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@section Scripts {
+    <script>
+    async function lvDeleteAlert(id, btn) {
+        if (!confirm('Delete this alert rule?')) return;
+        const resp = await lvFetch(`/api/alerts/${id}`, { method: 'DELETE' });
+        if (resp.ok) btn.closest('tr').remove();
+        else alert('Delete failed: ' + resp.status);
+    }
+    </script>
+}

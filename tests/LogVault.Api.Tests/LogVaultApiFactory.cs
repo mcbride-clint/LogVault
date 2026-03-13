@@ -33,6 +33,12 @@ public class LogVaultApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
             // Replace Negotiate (Windows Auth) with a test scheme that auto-authenticates
             // all requests as Admin+User — simulates a domain user in the required AD group.
+            // We remove ALL IConfigureOptions<AuthenticationOptions> registrations (including
+            // the ones from AddNegotiate()) and start fresh so the Negotiate handler is never
+            // resolved — it throws NotSupportedException on the in-memory test server.
+            services.RemoveAll<IConfigureOptions<AuthenticationOptions>>();
+            services.RemoveAll<IPostConfigureOptions<AuthenticationOptions>>();
+            services.RemoveAll<IAuthenticationSchemeProvider>();
             services.AddAuthentication(TestAuthHandler.SchemeName)
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
                     TestAuthHandler.SchemeName, _ => { });
@@ -104,13 +110,13 @@ public class LogVaultApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     }
 
     /// <summary>
-    /// Creates an HttpClient authenticated as admin.
-    /// With Windows Authentication, all test requests are automatically authenticated
-    /// as Admin+User via <see cref="TestAuthHandler"/>.
+    /// Creates an HttpClient authenticated as admin (Admin + User roles).
+    /// Adds the <c>X-Test-Auth: true</c> header so <see cref="TestAuthHandler"/> grants access.
     /// </summary>
     public Task<HttpClient> CreateAdminClientAsync()
     {
         var client = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add(TestAuthHandler.AuthHeader, "true");
         return Task.FromResult(client);
     }
 
@@ -135,8 +141,15 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
         UrlEncoder encoder)
         : base(options, logger, encoder) { }
 
+    // Requests must carry X-Test-Auth: true to be authenticated.
+    // This allows tests that explicitly test unauthenticated/unauthorized behavior to work.
+    public const string AuthHeader = "X-Test-Auth";
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        if (!Request.Headers.ContainsKey(AuthHeader))
+            return Task.FromResult(AuthenticateResult.NoResult());
+
         var claims = new[]
         {
             new Claim(ClaimTypes.Name, "TESTDOMAIN\\testadmin"),

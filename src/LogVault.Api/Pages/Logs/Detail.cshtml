@@ -1,0 +1,105 @@
+@page "/logs/{id:long}"
+@model LogVault.Api.Pages.Logs.DetailModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = $"Log #{Model.Event.Id}";
+    var props = new Dictionary<string, object?>();
+    try { props = JsonSerializer.Deserialize<Dictionary<string, object?>>(Model.Event.PropertiesJson) ?? []; } catch { }
+    var badgeClass = IndexModel.LevelBadgeClass(Model.Event.Level);
+}
+
+<div class="d-flex align-items-center gap-2 mb-3">
+    <a asp-page="/Logs/Index" class="btn btn-sm btn-outline-secondary">← Back</a>
+    <h4 class="mb-0">Log Event #@Model.Event.Id</h4>
+    <span class="badge @badgeClass">@Model.Event.Level</span>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">Timestamp</dt>
+                    <dd class="col-sm-9">@Model.Event.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff zzz")</dd>
+
+                    <dt class="col-sm-3">Message</dt>
+                    <dd class="col-sm-9">@Model.Event.RenderedMessage</dd>
+
+                    @if (!string.IsNullOrEmpty(Model.Event.MessageTemplate) && Model.Event.MessageTemplate != Model.Event.RenderedMessage)
+                    {
+                        <dt class="col-sm-3">Template</dt>
+                        <dd class="col-sm-9"><code>@Model.Event.MessageTemplate</code></dd>
+                    }
+
+                    @if (!string.IsNullOrEmpty(Model.Event.SourceApplication))
+                    {
+                        <dt class="col-sm-3">Application</dt>
+                        <dd class="col-sm-9">@Model.Event.SourceApplication</dd>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Event.SourceEnvironment))
+                    {
+                        <dt class="col-sm-3">Environment</dt>
+                        <dd class="col-sm-9">@Model.Event.SourceEnvironment</dd>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Event.SourceHost))
+                    {
+                        <dt class="col-sm-3">Host</dt>
+                        <dd class="col-sm-9">@Model.Event.SourceHost</dd>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Event.TraceId))
+                    {
+                        <dt class="col-sm-3">Trace ID</dt>
+                        <dd class="col-sm-9">
+                            <code>@Model.Event.TraceId</code>
+                            <a asp-page="/Logs/Correlate" asp-route-traceId="@Model.Event.TraceId" class="ms-2 small">View correlation</a>
+                            <a asp-page="/Traces/Index" asp-route-traceId="@Model.Event.TraceId" class="ms-2 small">View trace</a>
+                        </dd>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Event.SpanId))
+                    {
+                        <dt class="col-sm-3">Span ID</dt>
+                        <dd class="col-sm-9"><code>@Model.Event.SpanId</code></dd>
+                    }
+                    <dt class="col-sm-3">Ingested</dt>
+                    <dd class="col-sm-9">@Model.Event.IngestedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</dd>
+                </dl>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.Event.Exception))
+        {
+            <div class="card mt-3">
+                <div class="card-header">Exception</div>
+                <div class="card-body p-0">
+                    <pre class="lv-exception-block mb-0">@Model.Event.Exception</pre>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="col-md-4">
+        @if (props.Count > 0)
+        {
+            <div class="card">
+                <div class="card-header">Properties</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                            @foreach (var kv in props)
+                            {
+                                <tr>
+                                    <th class="small ps-3" style="width:40%">@kv.Key</th>
+                                    <td class="small pe-3 text-break">@kv.Value</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        <div class="mt-3 d-flex flex-column gap-2">
+            <a asp-page="/Alerts/Edit" asp-route-app="@Model.Event.SourceApplication" asp-route-level="@Model.Event.Level"
+               class="btn btn-sm btn-outline-warning">Create Alert Rule</a>
+        </div>
+    </div>
+</div>

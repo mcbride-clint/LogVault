@@ -1,0 +1,180 @@
+/* ============================================================
+   LogVault – site.css
+   Bootstrap 5 companion styles
+   ============================================================ */
+
+/* ----- Layout ----- */
+.lv-sidebar {
+    width: 230px;
+    min-width: 230px;
+    background-color: var(--lv-sidebar-bg);
+    border-right: 1px solid var(--lv-border);
+}
+
+.lv-topbar {
+    border-bottom: 1px solid var(--lv-border);
+    background-color: var(--lv-topbar-bg);
+    min-height: 52px;
+}
+
+.lv-brand {
+    color: var(--lv-brand-color);
+}
+
+.lv-brand:hover {
+    opacity: 0.85;
+}
+
+.lv-content {
+    background-color: var(--lv-content-bg);
+}
+
+/* ----- CSS variables (light) ----- */
+:root,
+[data-bs-theme="light"] {
+    --lv-sidebar-bg: #f8f9fa;
+    --lv-topbar-bg: #ffffff;
+    --lv-content-bg: #ffffff;
+    --lv-border: #dee2e6;
+    --lv-brand-color: #212529;
+}
+
+/* ----- CSS variables (dark) ----- */
+[data-bs-theme="dark"] {
+    --lv-sidebar-bg: #1a1d20;
+    --lv-topbar-bg: #212529;
+    --lv-content-bg: #212529;
+    --lv-border: #373b3e;
+    --lv-brand-color: #f8f9fa;
+}
+
+/* ----- Sidebar nav ----- */
+.lv-sidebar .nav-link {
+    color: var(--bs-body-color);
+    border-radius: 6px;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+.lv-sidebar .nav-link:hover {
+    background-color: rgba(0,0,0,.06);
+}
+
+[data-bs-theme="dark"] .lv-sidebar .nav-link:hover {
+    background-color: rgba(255,255,255,.08);
+}
+
+.lv-sidebar .nav-link.active {
+    background-color: rgba(13,110,253,.12);
+    color: #0d6efd;
+    font-weight: 500;
+}
+
+[data-bs-theme="dark"] .lv-sidebar .nav-link.active {
+    background-color: rgba(13,110,253,.25);
+    color: #6ea8fe;
+}
+
+.sidebar-divider {
+    margin: 0.75rem 0;
+    opacity: 0.15;
+}
+
+/* ----- Log level badges ----- */
+.lv-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    white-space: nowrap;
+}
+
+.lv-badge-verbose  { background-color: #6c757d; color: #fff; }
+.lv-badge-debug    { background-color: #0dcaf0; color: #000; }
+.lv-badge-information { background-color: #0d6efd; color: #fff; }
+.lv-badge-warning  { background-color: #ffc107; color: #000; }
+.lv-badge-error    { background-color: #dc3545; color: #fff; }
+.lv-badge-fatal    { background-color: #6f42c1; color: #fff; }
+
+/* ----- Log table ----- */
+.lv-log-row {
+    cursor: pointer;
+}
+
+.lv-log-row:hover td {
+    background-color: rgba(13,110,253,.06);
+}
+
+[data-bs-theme="dark"] .lv-log-row:hover td {
+    background-color: rgba(13,110,253,.15);
+}
+
+.lv-msg-cell {
+    max-width: 600px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ----- Live tail indicator ----- */
+.lv-live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #dc3545;
+    display: inline-block;
+    margin-right: 4px;
+    animation: lv-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes lv-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+}
+
+/* ----- Waterfall / trace ----- */
+.lv-waterfall-bar {
+    height: 18px;
+    min-width: 3px;
+    border-radius: 3px;
+    position: relative;
+}
+
+.lv-props-pre {
+    font-size: 0.8rem;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ----- Dashboard widget card ----- */
+.lv-widget-card {
+    min-height: 220px;
+}
+
+.lv-widget-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-secondary-color);
+    font-size: 0.875rem;
+    height: 100%;
+    min-height: 160px;
+}
+
+/* ----- Misc ----- */
+.lv-exception-block {
+    font-family: monospace;
+    font-size: 0.78rem;
+    background-color: rgba(220,53,69,.07);
+    border-left: 3px solid #dc3545;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0 4px 4px 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 300px;
+    overflow-y: auto;
+}

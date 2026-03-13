@@ -1,0 +1,33 @@
+@page
+@model LogVault.Api.Pages.DashboardModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Dashboard</h4>
+</div>
+
+<div class="row g-3" id="widgets-container">
+    @foreach (var w in Model.Widgets)
+    {
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card lv-widget-card h-100"
+                 data-widget-id="@w.Id"
+                 data-widget-type="@w.WidgetType"
+                 data-widget-config="@w.ConfigJson">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>@w.Title</span>
+                    <span class="lv-widget-badge badge bg-secondary">—</span>
+                </div>
+                <div class="card-body lv-widget-body d-flex flex-column justify-content-center">
+                    <div class="lv-widget-content text-center text-muted small">Loading…</div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script src="/js/dashboard.js"></script>
+}

@@ -21,11 +21,15 @@ bool forceReseed = args.Contains("--force");
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
 
-// Serialize enums as strings so the Blazor client can deserialize LogLevel as a string
+// Serialize enums as strings for API responses and Swagger
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
+
+// ----- Razor Pages -----
+builder.Services.AddRazorPages();
+builder.Services.AddAntiforgery(o => o.HeaderName = "X-CSRF-TOKEN");
 
 // ----- Configuration Validation -----
 builder.Services.AddOptions<ActiveDirectoryOptions>()
@@ -81,6 +85,10 @@ builder.Services.AddAuthorization(o =>
         ctx.User.IsInRole("Admin") ||
         ctx.User.IsInRole("User") ||
         ctx.User.HasClaim("auth_method", "ApiKey")));
+    // All Razor Pages require at least User or Admin by default (health + API endpoints have explicit auth)
+    o.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .RequireRole("User", "Admin")
+        .Build();
 });
 
 // ----- API Key Middleware -----
@@ -137,14 +145,14 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseMiddleware<ApiKeyMiddleware>();
 app.UseAuthorization();
 
 // ----- Health -----
-app.MapHealthChecks("/health", new HealthCheckOptions { AllowCachingResponses = false });
+app.MapHealthChecks("/health", new HealthCheckOptions { AllowCachingResponses = false })
+    .AllowAnonymous();
 
 // ----- SignalR Hub -----
 app.MapHub<LogHub>("/hubs/logs");
@@ -157,8 +165,7 @@ app.MapAdminEndpoints();
 app.MapAuthEndpoints();
 app.MapSavedFilterEndpoints();
 app.MapDashboardEndpoints();
-
-app.MapFallbackToFile("index.html");
+app.MapRazorPages();
 
 app.Run();
 

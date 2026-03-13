@@ -1,0 +1,62 @@
+@page "/traces/{traceId}"
+@model LogVault.Api.Pages.Traces.IndexModel
+@{
+    ViewData["Title"] = $"Trace — {Model.TraceId}";
+}
+
+<div class="d-flex align-items-center gap-2 mb-3">
+    <a asp-page="/Logs/Index" class="btn btn-sm btn-outline-secondary">← Back</a>
+    <h4 class="mb-0">Trace</h4>
+    <code class="small">@Model.TraceId</code>
+</div>
+
+@if (Model.Spans.Count == 0)
+{
+    <p class="text-muted">No events found for this trace.</p>
+}
+else
+{
+    <div class="mb-2 text-muted small">
+        @Model.Spans.Sum(s => s.Events.Count) events · @Model.Spans.Count span(s) · @Model.TraceDuration.TotalMilliseconds.ToString("N0") ms
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr>
+                    <th style="width:140px">Span ID</th>
+                    <th style="width:80px">Events</th>
+                    <th>Timeline</th>
+                    <th style="width:80px">Duration</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var span in Model.Spans)
+                {
+                    var offset = Model.OffsetPercent(span.Start);
+                    var width = Model.WidthPercent(span.Start, span.End);
+                    <tr>
+                        <td class="small"><code>@(span.SpanId ?? "—")</code></td>
+                        <td class="small">@span.Events.Count</td>
+                        <td>
+                            <div style="position:relative;height:18px;background:var(--bs-secondary-bg);border-radius:3px">
+                                <div style="position:absolute;left:@offset.ToString("F1")%;width:@width.ToString("F1")%;height:100%;background:#4e79a7;border-radius:3px;min-width:4px"></div>
+                            </div>
+                        </td>
+                        <td class="small">@((span.End - span.Start).TotalMilliseconds.ToString("N0")) ms</td>
+                    </tr>
+                    @foreach (var ev in span.Events)
+                    {
+                        <tr onclick="window.location='/logs/@ev.Id'" style="cursor:pointer;background:var(--bs-tertiary-bg)">
+                            <td class="ps-4 small text-muted" colspan="2">@ev.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff")</td>
+                            <td colspan="2" class="small">
+                                <span class="badge @LogVault.Api.Pages.Logs.IndexModel.LevelBadgeClass(ev.Level) me-1">@ev.Level</span>
+                                <span class="text-truncate">@ev.RenderedMessage</span>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}

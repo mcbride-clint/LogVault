@@ -2,7 +2,6 @@
   <Folder Name="/src/">
     <Project Path="src/LogVault.Api/LogVault.Api.csproj" />
     <Project Path="src/LogVault.Application/LogVault.Application.csproj" />
-    <Project Path="src/LogVault.Client/LogVault.Client.csproj" />
     <Project Path="src/LogVault.Domain/LogVault.Domain.csproj" />
     <Project Path="src/LogVault.Infrastructure.Mail/LogVault.Infrastructure.Mail.csproj" />
     <Project Path="src/LogVault.Infrastructure/LogVault.Infrastructure.csproj" />
