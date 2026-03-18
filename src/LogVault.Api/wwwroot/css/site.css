@@ -270,6 +270,80 @@
 [data-bs-theme="dark"] .lv-expr-level  { color: #4ec9b0; font-style: italic; }
 [data-bs-theme="dark"] .lv-expr-error  { text-decoration: underline wavy #f44747; }
 
+/* ----- In-page Query Sidebar (Log Explorer) ----- */
+.lv-query-sidebar {
+    width: 200px;
+    min-width: 200px;
+    border-right: 1px solid var(--lv-border);
+    padding-right: 0.75rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.lv-query-sidebar-heading {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bs-secondary-color);
+}
+
+.lv-sidebar-close {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.lv-query-group-label {
+    font-size: 0.72rem;
+    color: var(--bs-secondary-color);
+    margin-bottom: 0.2rem;
+}
+
+.lv-query-item {
+    padding: 0.25rem 0.4rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+    border-radius: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+    color: var(--bs-body-color);
+    margin-bottom: 1px;
+}
+
+.lv-query-item:hover {
+    background-color: rgba(13, 110, 253, 0.08);
+    color: #0d6efd;
+}
+
+[data-bs-theme="dark"] .lv-query-item:hover {
+    background-color: rgba(13, 110, 253, 0.2);
+    color: #6ea8fe;
+}
+
+.lv-query-pinned { font-weight: 500; }
+
+.lv-query-owner {
+    font-size: 0.72rem;
+    color: var(--bs-secondary-color);
+    display: block;
+    margin-top: 1px;
+}
+
+.lv-query-shared-badge {
+    font-size: 0.65rem;
+    color: var(--bs-secondary-color);
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    padding: 0 3px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* Prevent results table from overflowing flex container */
+#lv-explorer-body > .flex-grow-1 { min-width: 0; }
+
 /* ----- Misc ----- */
 .lv-exception-block {
     font-family: monospace;

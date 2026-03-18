@@ -8,9 +8,10 @@ A self-hosted log ingestion, query, and alerting platform built on ASP.NET Core 
 - **Real-time log tail** — Live streaming via SignalR with per-client filters
 - **Full-text search** — Single search box that matches across message, exception, and all structured properties (multi-term AND logic)
 - **Structured property filtering** — Filter by property key/value with Contains, Equals, or Not Equals operators
-- **Query expression syntax** — SQL-like `expr` filter combining level, app, message, timestamp, exception, trace ID, and custom property conditions (e.g. `level >= Warning AND app == "MyApi" AND prop:UserId == "42"`)
-- **Alerting** — Rule-based alerts with custom filter expressions, throttling, email notifications, and webhook delivery (Generic, Slack, Teams)
-- **Saved & pinned filters** — Save query state as named filters; pin favourites to appear as one-click chips in the filter panel
+- **Query expression syntax** — SQL-like `expr` filter combining level, app, message, timestamp, exception, trace ID, and custom property conditions (e.g. `level >= Warning AND app == "MyApi" AND prop:UserId == "42"`). Syntax highlighting and autocomplete are available in both the Log Explorer and Alert rule editor.
+- **Saved Queries** — Save named queries as Private (personal) or Shared (visible to all users). Access them from the collapsible sidebar in the Log Explorer, or manage them on the dedicated Saved Queries page (`/queries`). Click any saved query to instantly apply it. Admins see all queries on the management page.
+- **Create Alert from Log Explorer** — Click "Create Alert" while browsing logs to jump directly to the alert rule editor pre-filled with your current expression and application filter.
+- **Alerting** — Rule-based alerts with custom filter expressions, throttling, email notifications, and webhook delivery (Generic, Slack, Teams). The filter expression editor provides the same syntax highlighting and autocomplete as the Log Explorer.
 - **Log correlation view** — For any trace ID, see the full trace waterfall plus before/after context events from the same applications
 - **Export** — Download query results as CSV or JSON
 - **Dashboards** — Configurable widget-based dashboards (log volume, top applications, recent errors, etc.)

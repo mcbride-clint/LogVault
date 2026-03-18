@@ -1,0 +1,145 @@
+@page
+@model LogVault.Api.Pages.Queries.IndexModel
+@{
+    ViewData["Title"] = "Saved Queries";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Saved Queries</h4>
+    <a asp-page="/Logs/Index" class="btn btn-sm btn-outline-secondary">← Log Explorer</a>
+</div>
+
+@if (Model.Queries.Any())
+{
+    <div class="mb-3">
+        <input id="lv-query-search" type="search" class="form-control form-control-sm"
+               placeholder="Search by name or expression…" autocomplete="off" />
+    </div>
+}
+
+@if (TempData["SuccessMessage"] is string msg)
+{
+    <div class="alert alert-success py-1 small">@msg</div>
+}
+
+@if (!Model.Queries.Any())
+{
+    <p class="text-muted">No saved queries yet. Create one from the <a asp-page="/Logs/Index">Log Explorer</a> using the "Save Query" button.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Expression</th>
+                    <th>Visibility</th>
+                    <th>Owner</th>
+                    <th>Created</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var q in Model.Queries)
+                {
+                    var isOwner = q.OwnerId == User.Identity?.Name;
+                    <tr id="row-@q.Id">
+                        <td>
+                            @if (isOwner)
+                            {
+                                <span class="lv-rename-display" data-id="@q.Id">@q.Name</span>
+                                <form method="post" asp-page-handler="Rename" class="lv-rename-form d-none">
+                                    <input type="hidden" name="id" value="@q.Id" />
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" name="newName" class="form-control form-control-sm" value="@q.Name" />
+                                        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                onclick="lvCancelRename(@q.Id)">✕</button>
+                                    </div>
+                                </form>
+                            }
+                            else
+                            {
+                                @q.Name
+                            }
+                        </td>
+                        <td class="font-monospace small text-truncate" style="max-width:300px" title="@q.FilterJson">
+                            @(string.IsNullOrWhiteSpace(q.FilterJson) ? "—" : q.FilterJson)
+                        </td>
+                        <td>
+                            @if (q.IsPublic)
+                            {
+                                <span class="badge bg-success">Shared</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Private</span>
+                            }
+                        </td>
+                        <td class="small">@q.OwnerId.Split('\\').Last()</td>
+                        <td class="small text-nowrap">@q.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                        <td class="text-end text-nowrap">
+                            @if (!string.IsNullOrWhiteSpace(q.FilterJson))
+                            {
+                                <a href="/logs?expr=@Uri.EscapeDataString(q.FilterJson)"
+                                   class="btn btn-sm btn-outline-primary me-1">Open</a>
+                            }
+                            @if (isOwner)
+                            {
+                                <button class="btn btn-sm btn-outline-secondary me-1"
+                                        onclick="lvStartRename(@q.Id)">Rename</button>
+                                <button class="btn btn-sm btn-outline-secondary me-1"
+                                        onclick="lvToggleVisibility(@q.Id, this)"
+                                        data-is-public="@q.IsPublic.ToString().ToLower()">
+                                    @(q.IsPublic ? "Make Private" : "Share")
+                                </button>
+                                <form method="post" asp-page-handler="Delete" class="d-inline">
+                                    <input type="hidden" name="id" value="@q.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                                            onclick="return confirm('Delete this query?')">Delete</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@section Scripts {
+<script>
+(function () {
+    const input = document.getElementById('lv-query-search');
+    if (!input) return;
+    input.addEventListener('input', function () {
+        const term = this.value.trim().toLowerCase();
+        document.querySelectorAll('tbody tr[id^="row-"]').forEach(function (row) {
+            const name = row.querySelector('td:first-child')?.textContent?.toLowerCase() ?? '';
+            const expr = row.querySelector('td:nth-child(2)')?.textContent?.toLowerCase() ?? '';
+            row.style.display = (!term || name.includes(term) || expr.includes(term)) ? '' : 'none';
+        });
+    });
+})();
+
+function lvStartRename(id) {
+    document.querySelector('.lv-rename-display[data-id="' + id + '"]').classList.add('d-none');
+    document.querySelector('#row-' + id + ' .lv-rename-form').classList.remove('d-none');
+}
+
+function lvCancelRename(id) {
+    document.querySelector('.lv-rename-display[data-id="' + id + '"]').classList.remove('d-none');
+    document.querySelector('#row-' + id + ' .lv-rename-form').classList.add('d-none');
+}
+
+async function lvToggleVisibility(id, btn) {
+    const resp = await lvFetch('/api/savedfilters/' + id + '/visibility', { method: 'PATCH' });
+    if (resp.ok) {
+        window.location.reload();
+    } else {
+        alert('Failed to update visibility: ' + resp.status);
+    }
+}
+</script>
+}

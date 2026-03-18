@@ -22,7 +22,7 @@ public class EditModel(IAlertRuleRepository alertRepo) : PageModel
 
     public int? EditId { get; private set; }
 
-    public async Task OnGetAsync(int? id, string? app, LogLevel? level, CancellationToken ct)
+    public async Task OnGetAsync(int? id, string? app, LogLevel? level, string? expr, CancellationToken ct)
     {
         if (id.HasValue)
         {
@@ -43,9 +43,10 @@ public class EditModel(IAlertRuleRepository alertRepo) : PageModel
         }
         else
         {
-            // Pre-fill from query params (coming from Log Detail page)
+            // Pre-fill from query params (coming from Log Detail or Log Explorer page)
             if (app is not null) SourceApplicationFilter = app;
             if (level.HasValue) MinimumLevel = level.Value;
+            if (expr is not null) FilterExpression = expr;
         }
     }
 

@@ -12,7 +12,7 @@ public static class SavedFilterEndpoints
         group.MapGet("", async (HttpContext ctx, ISavedFilterRepository repo, CancellationToken ct) =>
         {
             var ownerId = ctx.User.Identity?.Name ?? "";
-            var filters = await repo.GetByOwnerAsync(ownerId, ct);
+            var filters = await repo.GetAllAccessibleAsync(ownerId, ct);
             return Results.Ok(filters.Select(f => new SavedFilterDto(f)));
         }).WithName("GetSavedFilters").WithTags("SavedFilters");
 
@@ -24,7 +24,8 @@ public static class SavedFilterEndpoints
             {
                 Name = request.Name,
                 OwnerId = ownerId,
-                FilterJson = request.FilterJson
+                FilterJson = request.FilterJson,
+                IsPublic = request.IsPublic
             };
             filter = await repo.UpsertAsync(filter, ct);
             return Results.Created($"/api/savedfilters/{filter.Id}", new SavedFilterDto(filter));
@@ -40,6 +41,7 @@ public static class SavedFilterEndpoints
 
             existing.Name = request.Name;
             existing.FilterJson = request.FilterJson;
+            existing.IsPublic = request.IsPublic;
             await repo.UpsertAsync(existing, ct);
             return Results.Ok(new SavedFilterDto(existing));
         }).WithName("UpdateSavedFilter").WithTags("SavedFilters");
@@ -69,14 +71,27 @@ public static class SavedFilterEndpoints
             return Results.Ok(new SavedFilterDto(existing));
         }).WithName("TogglePinSavedFilter").WithTags("SavedFilters");
 
+        group.MapPatch("/{id:int}/visibility", async (int id, HttpContext ctx,
+            ISavedFilterRepository repo, CancellationToken ct) =>
+        {
+            var ownerId = ctx.User.Identity?.Name ?? "";
+            var existing = await repo.GetByIdAsync(id, ct);
+            if (existing == null || existing.OwnerId != ownerId)
+                return Results.NotFound();
+
+            existing.IsPublic = !existing.IsPublic;
+            await repo.UpsertAsync(existing, ct);
+            return Results.Ok(new SavedFilterDto(existing));
+        }).WithName("ToggleVisibilitySavedFilter").WithTags("SavedFilters");
+
         return app;
     }
 }
 
-public record SavedFilterRequest(string Name, string FilterJson);
+public record SavedFilterRequest(string Name, string FilterJson, bool IsPublic = false);
 
 public record SavedFilterDto(int Id, string Name, string OwnerId, string FilterJson,
-    bool IsPinned, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
+    bool IsPinned, bool IsPublic, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
 {
-    public SavedFilterDto(SavedFilter f) : this(f.Id, f.Name, f.OwnerId, f.FilterJson, f.IsPinned, f.CreatedAt, f.UpdatedAt) { }
+    public SavedFilterDto(SavedFilter f) : this(f.Id, f.Name, f.OwnerId, f.FilterJson, f.IsPinned, f.IsPublic, f.CreatedAt, f.UpdatedAt) { }
 }

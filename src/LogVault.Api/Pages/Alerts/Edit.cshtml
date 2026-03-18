@@ -22,11 +22,12 @@
 
             <div class="mb-3">
                 <label class="form-label">Filter Expression</label>
-                <div class="input-group">
-                    <input asp-for="FilterExpression" class="form-control font-monospace" placeholder='level >= Error AND app = "MyApp"' />
-                    <button type="button" class="btn btn-outline-secondary" id="btn-test-expr">Test</button>
+                <input asp-for="FilterExpression" class="form-control font-monospace"
+                       placeholder='level >= Error AND app = "MyApp"' data-expr-editor />
+                <div class="d-flex align-items-center gap-2 mt-1">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-test-expr">Test</button>
+                    <div id="expr-result" class="form-text mb-0"></div>
                 </div>
-                <div id="expr-result" class="form-text"></div>
             </div>
 
             <div class="row g-3 mb-3">
@@ -98,6 +99,7 @@
 </div>
 
 @section Scripts {
+    <script src="/js/expr-editor.js"></script>
     <script>
     function lvAddRecipient() {
         const div = document.createElement('div');

@@ -30,7 +30,7 @@ public class IndexModel(ILogEventRepository repo, ISavedFilterRepository savedFi
     public async Task OnGetAsync(CancellationToken ct)
     {
         var ownerId = User.Identity?.Name ?? "anonymous";
-        SavedFilters = await savedFilters.GetByOwnerAsync(ownerId, ct);
+        SavedFilters = await savedFilters.GetAllAccessibleAsync(ownerId, ct);
 
         var size = Math.Min(PageSize, 500);
         DomainLogLevel? minLevel = Enum.TryParse<DomainLogLevel>(Level, true, out var l) ? l : null;
