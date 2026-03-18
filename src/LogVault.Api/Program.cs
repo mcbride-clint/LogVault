@@ -1,10 +1,12 @@
 using LogVault.Application;
+using LogVault.Application.Services;
 using LogVault.Application.Workers;
 using LogVault.Api.Auth;
 using LogVault.Api.Configuration;
 using LogVault.Api.Endpoints;
 using LogVault.Api.Hubs;
 using LogVault.Api.Middleware;
+using LogVault.Api.Workers;
 using LogVault.Domain.Services;
 using LogVault.Infrastructure;
 using LogVault.Infrastructure.Data;
@@ -13,6 +15,7 @@ using LogVault.Infrastructure.Mail;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using System.Text.Json.Serialization;
 
 bool seedMode = args.Contains("--seed");
@@ -58,6 +61,11 @@ builder.Services.AddOptions<ApiKeyOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+builder.Services.AddOptions<IisWatcherOptions>()
+    .BindConfiguration(IisWatcherOptions.Section)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 // ----- Infrastructure -----
 builder.Services.AddLogVaultInfrastructure(config);
 builder.Services.AddLogVaultMail();
@@ -68,6 +76,10 @@ builder.Services.AddLogVaultApplication(config);
 // ----- Simulation Worker -----
 if (simulateMode)
     builder.Services.AddHostedService<SimulationWorker>();
+
+// ----- IIS Log Tail Worker -----
+builder.Services.AddSingleton<IisWatcherRuntimeState>();
+builder.Services.AddHostedService<IisLogTailWorker>();
 
 // ----- SignalR Hub Notifier (Api implements Domain interface) -----
 builder.Services.AddSignalR();

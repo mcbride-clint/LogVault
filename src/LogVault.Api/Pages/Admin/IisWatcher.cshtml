@@ -1,0 +1,126 @@
+@page
+@model LogVault.Api.Pages.Admin.IisWatcherModel
+@{
+    ViewData["Title"] = "IIS Watcher";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">IIS Watcher</h4>
+</div>
+
+@if (!Model.Options.Enabled)
+{
+    <div class="alert alert-info">
+        IIS Watcher is disabled in configuration. Set <code>IisWatcher:Enabled = true</code> in appsettings to activate.
+    </div>
+}
+else if (Model.Options.Sources.Length == 0)
+{
+    <div class="alert alert-warning">
+        No sources configured. Add entries to <code>IisWatcher:Sources</code> in appsettings.
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-header">Configured Sources</div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Path</th>
+                        <th>Application</th>
+                        <th>Environment</th>
+                        <th>Poll (ms)</th>
+                        <th>Config</th>
+                        <th>Runtime</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var source in Model.Options.Sources)
+                    {
+                        var isEnabled = Model.RuntimeStates.TryGetValue(source.Path, out var v) && v;
+                        var pollMs = source.PollIntervalMs?.ToString() ?? Model.Options.PollIntervalMs + " (global)";
+                        var isUnc = source.Path.StartsWith(@"\\");
+                        <tr data-path="@source.Path">
+                            <td class="small text-break">
+                                @source.Path
+                                @if (isUnc)
+                                {
+                                    <span class="badge bg-secondary ms-1">UNC</span>
+                                }
+                            </td>
+                            <td>@source.SourceApplication</td>
+                            <td>@(source.SourceEnvironment ?? "—")</td>
+                            <td class="text-muted small">@(isUnc ? pollMs : "—")</td>
+                            <td>
+                                @if (source.Enabled)
+                                {
+                                    <span class="badge bg-success">Enabled</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Disabled</span>
+                                }
+                            </td>
+                            <td class="runtime-badge">
+                                @if (isEnabled)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark">Paused</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm @(isEnabled ? "btn-outline-warning" : "btn-outline-success") btn-toggle"
+                                        data-path="@source.Path"
+                                        data-enabled="@(isEnabled ? "true" : "false")">
+                                    @(isEnabled ? "Pause" : "Resume")
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <p class="text-muted small mt-2">Runtime state resets to configuration defaults on service restart.</p>
+}
+
+@section Scripts {
+    <script>
+    document.querySelectorAll('.btn-toggle').forEach(btn => {
+        btn.addEventListener('click', async function () {
+            const path = this.dataset.path;
+            const currentlyEnabled = this.dataset.enabled === 'true';
+            const newEnabled = !currentlyEnabled;
+
+            this.disabled = true;
+
+            const resp = await lvFetch('/api/admin/iiswatcher/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path, enabled: newEnabled })
+            });
+
+            if (resp.ok) {
+                const row = document.querySelector(`tr[data-path="${CSS.escape(path)}"]`);
+                const badge = row.querySelector('.runtime-badge');
+                badge.innerHTML = newEnabled
+                    ? '<span class="badge bg-success">Active</span>'
+                    : '<span class="badge bg-warning text-dark">Paused</span>';
+                this.textContent = newEnabled ? 'Pause' : 'Resume';
+                this.className = `btn btn-sm ${newEnabled ? 'btn-outline-warning' : 'btn-outline-success'} btn-toggle`;
+                this.dataset.enabled = newEnabled ? 'true' : 'false';
+            } else {
+                alert('Toggle failed: ' + resp.status);
+            }
+
+            this.disabled = false;
+        });
+    });
+    </script>
+}

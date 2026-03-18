@@ -15,6 +15,7 @@ A self-hosted log ingestion, query, and alerting platform built on ASP.NET Core 
 - **Log correlation view** — For any trace ID, see the full trace waterfall plus before/after context events from the same applications
 - **Export** — Download query results as CSV or JSON
 - **Dashboards** — Configurable widget-based dashboards (log volume, top applications, recent errors, etc.)
+- **IIS live tail** — Watch IIS W3C log files in real-time (local paths via `FileSystemWatcher`, remote servers via UNC share polling). Per-source application/environment labels. Runtime enable/disable per source via Admin UI without restarting.
 - **API Key auth** — Programmatic ingestion without user credentials
 - **Active Directory integration** — LDAP-backed login with group-based Admin/User roles
 - **Retention** — Automatic or manual purge of old log events
@@ -189,6 +190,56 @@ Controls key rotation behaviour.
   "RotationGraceHours": 24
 }
 ```
+
+---
+
+### IIS Watcher (`IisWatcher`)
+
+Watches IIS W3C log directories in real-time and feeds new entries into the ingestion pipeline as they are written. Local paths use `FileSystemWatcher`; UNC/network paths (`\\server\share\...`) use polling. Only lines appended after LogVault starts are ingested — existing content and old daily files are skipped.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `Enabled` | bool | `false` | Master switch. Set to `true` to activate the watcher. |
+| `PollIntervalMs` | int | `2000` | Default poll interval in ms for UNC paths (used when a source has no per-source override) |
+| `Sources` | array | `[]` | List of `IisLogSource` objects (see below) |
+
+Each entry in `Sources`:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `Path` | string | `""` | Local directory or UNC path to watch |
+| `SourceApplication` | string | `"IIS"` | Label applied to ingested events |
+| `SourceEnvironment` | string? | `null` | Environment label (optional) |
+| `Enabled` | bool | `true` | Whether this source is active on startup |
+| `PollIntervalMs` | int? | `null` | Override poll interval for this source only (UNC paths) |
+
+```json
+"IisWatcher": {
+  "Enabled": true,
+  "PollIntervalMs": 2000,
+  "Sources": [
+    {
+      "Path": "C:\\inetpub\\logs\\LogFiles\\W3SVC1",
+      "SourceApplication": "IIS-local",
+      "SourceEnvironment": "Development"
+    },
+    {
+      "Path": "\\\\web-server-01\\iislogs\\W3SVC1",
+      "SourceApplication": "IIS-web01",
+      "SourceEnvironment": "Production",
+      "PollIntervalMs": 5000
+    },
+    {
+      "Path": "\\\\web-server-02\\iislogs\\W3SVC1",
+      "SourceApplication": "IIS-web02",
+      "SourceEnvironment": "Production",
+      "Enabled": false
+    }
+  ]
+}
+```
+
+Individual sources can be temporarily paused or resumed at runtime via the **Admin › IIS Watcher** page without restarting. Runtime state resets to config defaults on service restart.
 
 ---
 
@@ -407,6 +458,12 @@ Requires `Admin` role.
 | `POST` | `/api/admin/apikeys` | Create a new API key |
 | `POST` | `/api/admin/apikeys/{id}/rotate` | Rotate a key |
 | `DELETE` | `/api/admin/apikeys/{id}` | Revoke a key |
+| `POST` | `/api/admin/iiswatcher/toggle` | Enable or disable an IIS Watcher source at runtime |
+
+**Toggle IIS Watcher source body:**
+```json
+{ "path": "\\\\web-server-01\\iislogs\\W3SVC1", "enabled": false }
+```
 
 **Create API key body:**
 ```json
