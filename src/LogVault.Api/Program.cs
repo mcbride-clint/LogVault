@@ -17,6 +17,7 @@ using System.Text.Json.Serialization;
 
 bool seedMode = args.Contains("--seed");
 bool forceReseed = args.Contains("--force");
+bool simulateMode = args.Contains("--simulate");
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
@@ -63,6 +64,10 @@ builder.Services.AddLogVaultMail();
 
 // ----- Application -----
 builder.Services.AddLogVaultApplication(config);
+
+// ----- Simulation Worker -----
+if (simulateMode)
+    builder.Services.AddHostedService<SimulationWorker>();
 
 // ----- SignalR Hub Notifier (Api implements Domain interface) -----
 builder.Services.AddSignalR();
@@ -127,6 +132,10 @@ if (seedMode)
     await seeder.SeedAsync(force: forceReseed);
     return;
 }
+
+// ----- Simulation Mode -----
+if (simulateMode)
+    app.Logger.LogWarning("*** SIMULATION MODE active — synthetic log events are being generated continuously ***");
 
 // ----- Middleware Pipeline -----
 app.UseExceptionHandler(errApp =>

@@ -71,6 +71,7 @@
         });
 
         connection.start()
+            .then(() => connection.invoke('SetFilter', {}))
             .then(() => {
                 liveTailActive = true;
                 btnToggle.textContent = 'Stop Live Tail';

@@ -1,19 +1,10 @@
 {
   "profiles": {
-    "http": {
-      "commandName": "Project",
-      "launchBrowser": true,
-      "launchUrl": "",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "dotnetRunMessages": true,
-      "applicationUrl": "http://localhost:5041"
-    },
     "https": {
       "commandName": "Project",
       "launchBrowser": true,
       "launchUrl": "",
+      "commandLineArgs": "--simulate",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
