@@ -165,6 +165,111 @@
     min-height: 160px;
 }
 
+/* ----- Expression editor ----- */
+
+/* Wrapper takes Bootstrap form-control visual styling */
+.lv-expr-wrap {
+    position: relative;
+    padding: 0 !important;
+    cursor: text;
+    overflow: visible !important;
+}
+
+/* Mirror div — highlighted HTML behind the transparent input */
+.lv-expr-mirror {
+    position: absolute;
+    inset: 0;
+    padding: 0.25rem 0.5rem;   /* matches form-control-sm */
+    font-family: var(--bs-font-monospace, 'Roboto Mono', monospace);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    pointer-events: none;
+    border: 1px solid transparent; /* same border-width as form-control to align padding */
+}
+
+/* The actual <input> — transparent text, visible caret */
+.lv-expr-input {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    padding: 0.25rem 0.5rem;
+    font-family: var(--bs-font-monospace, 'Roboto Mono', monospace);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    background: transparent !important;
+    color: transparent !important;
+    caret-color: var(--bs-body-color) !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.lv-expr-input::placeholder {
+    color: var(--bs-secondary-color) !important;
+    opacity: 1;
+}
+
+/* Focus ring on the wrapper */
+.lv-expr-focused {
+    border-color: #86b7fe;
+    outline: 0;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+[data-bs-theme="dark"] .lv-expr-focused {
+    border-color: #6ea8fe;
+    box-shadow: 0 0 0 0.25rem rgba(110, 168, 254, 0.25);
+}
+
+/* Autocomplete dropdown */
+.lv-expr-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1055;
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius-sm);
+    box-shadow: 0 4px 12px rgba(0,0,0,.12);
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.lv-expr-item {
+    padding: 0.25rem 0.6rem;
+    font-family: monospace;
+    font-size: 0.82rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.lv-expr-item:hover,
+.lv-expr-item-active {
+    background-color: var(--bs-primary);
+    color: #fff;
+}
+
+/* Token colours — light mode */
+.lv-expr-field     { color: #0070c1; }
+.lv-expr-prop      { color: #1a7a3e; }
+.lv-expr-op        { color: #a31515; }
+.lv-expr-kw        { color: #af00db; font-weight: 600; }
+.lv-expr-str       { color: #267f00; }
+.lv-expr-level     { color: #0070c1; font-style: italic; }
+.lv-expr-error     { text-decoration: underline wavy #dc3545; }
+
+/* Token colours — dark mode */
+[data-bs-theme="dark"] .lv-expr-field  { color: #9cdcfe; }
+[data-bs-theme="dark"] .lv-expr-prop   { color: #4ec9b0; }
+[data-bs-theme="dark"] .lv-expr-op     { color: #f44747; }
+[data-bs-theme="dark"] .lv-expr-kw     { color: #c586c0; font-weight: 600; }
+[data-bs-theme="dark"] .lv-expr-str    { color: #ce9178; }
+[data-bs-theme="dark"] .lv-expr-level  { color: #4ec9b0; font-style: italic; }
+[data-bs-theme="dark"] .lv-expr-error  { text-decoration: underline wavy #f44747; }
+
 /* ----- Misc ----- */
 .lv-exception-block {
     font-family: monospace;

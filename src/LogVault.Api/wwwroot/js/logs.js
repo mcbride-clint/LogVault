@@ -1,5 +1,39 @@
 // Log Explorer — live tail via SignalR
 (function () {
+
+    // ── Scroll state persistence ──────────────────────────────────────────────
+    // Save the current scroll position + search URL so the detail page's Back
+    // button can return to exactly this URL and we can restore the scroll.
+
+    const SCROLL_KEY = 'lv_scroll_restore';
+
+    window.lvNavigateToLog = function (id) {
+        const content = document.querySelector('.lv-content');
+        if (content) {
+            try {
+                sessionStorage.setItem(SCROLL_KEY, JSON.stringify({
+                    url: window.location.href,
+                    scrollTop: content.scrollTop
+                }));
+            } catch (_) {}
+        }
+        window.location = '/logs/' + id;
+    };
+
+    // Restore scroll if we're returning to the page that was saved
+    (function restoreScroll() {
+        let saved;
+        try { saved = JSON.parse(sessionStorage.getItem(SCROLL_KEY)); } catch (_) {}
+        if (!saved || saved.url !== window.location.href) return;
+        sessionStorage.removeItem(SCROLL_KEY);
+        const content = document.querySelector('.lv-content');
+        if (!content) return;
+        // rAF ensures layout is complete before scrolling
+        requestAnimationFrame(() => { content.scrollTop = saved.scrollTop; });
+    })();
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     let connection = null;
     let liveTailActive = false;
 
@@ -26,7 +60,7 @@
                 const tr = document.createElement('tr');
                 tr.className = 'lv-log-row';
                 tr.style.cursor = 'pointer';
-                tr.onclick = () => window.location = '/logs/' + ev.id;
+                tr.onclick = () => window.lvNavigateToLog(ev.id);
                 tr.innerHTML =
                     `<td class="text-nowrap small">${formatTs(ev.timestamp)}</td>` +
                     `<td><span class="badge ${levelClass(ev.level)}">${ev.level}</span></td>` +

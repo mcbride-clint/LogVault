@@ -1,3 +1,4 @@
+using LogVault.Application.Parsing;
 using LogVault.Domain.Models;
 using LogVault.Domain.Repositories;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +25,7 @@ public class IndexModel(ILogEventRepository repo, ISavedFilterRepository savedFi
 
     public PagedResult<LogVault.Domain.Entities.LogEvent> Result { get; private set; } = new([], 0, 1, 50);
     public IReadOnlyList<LogVault.Domain.Entities.SavedFilter> SavedFilters { get; private set; } = [];
+    public string? ExprError { get; private set; }
 
     public async Task OnGetAsync(CancellationToken ct)
     {
@@ -33,16 +35,32 @@ public class IndexModel(ILogEventRepository repo, ISavedFilterRepository savedFi
         var size = Math.Min(PageSize, 500);
         DomainLogLevel? minLevel = Enum.TryParse<DomainLogLevel>(Level, true, out var l) ? l : null;
 
+        ParsedQueryExpression? parsed = null;
+        if (!string.IsNullOrWhiteSpace(Expr))
+        {
+            parsed = LogQueryExpressionParser.Parse(Expr);
+            if (parsed.HasError)
+            {
+                ExprError = parsed.Error;
+                return;
+            }
+        }
+
         var query = new LogEventQuery(
-            From: From, To: To,
-            MinLevel: minLevel, MaxLevel: null,
-            SourceApplication: App, SourceEnvironment: Env,
-            MessageContains: Q, ExceptionContains: null,
+            From: parsed?.From ?? From,
+            To: parsed?.To ?? To,
+            MinLevel: parsed?.MinLevel ?? minLevel,
+            MaxLevel: parsed?.MaxLevel,
+            SourceApplication: parsed?.SourceApplication ?? App,
+            SourceEnvironment: parsed?.SourceEnvironment ?? Env,
+            MessageContains: parsed?.MessageContains ?? Q,
+            ExceptionContains: parsed?.ExceptionContains,
             PropertyKey: null, PropertyValue: null,
-            TraceId: TraceId,
+            TraceId: parsed?.TraceId ?? TraceId,
             Page: Page, PageSize: size,
             SortBy: Sort, Descending: Desc,
-            FullTextSearch: Fts);
+            FullTextSearch: Fts,
+            PropertyConditions: parsed?.PropertyConditions.Count > 0 ? parsed.PropertyConditions : null);
 
         Result = await repo.QueryAsync(query, ct);
     }

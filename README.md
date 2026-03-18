@@ -1,6 +1,6 @@
 # LogVault
 
-A self-hosted log ingestion, query, and alerting platform built on ASP.NET Core 8 / .NET 10. LogVault accepts structured logs from your applications, stores them in SQLite, and provides a Blazor WASM UI for querying and real-time monitoring.
+A self-hosted log ingestion, query, and alerting platform built on ASP.NET Core / .NET 10. LogVault accepts structured logs from your applications, stores them in SQLite, and provides a server-rendered Razor Pages UI for querying and real-time monitoring.
 
 ## Features
 
@@ -8,6 +8,7 @@ A self-hosted log ingestion, query, and alerting platform built on ASP.NET Core 
 - **Real-time log tail** — Live streaming via SignalR with per-client filters
 - **Full-text search** — Single search box that matches across message, exception, and all structured properties (multi-term AND logic)
 - **Structured property filtering** — Filter by property key/value with Contains, Equals, or Not Equals operators
+- **Query expression syntax** — SQL-like `expr` filter combining level, app, message, timestamp, exception, trace ID, and custom property conditions (e.g. `level >= Warning AND app == "MyApi" AND prop:UserId == "42"`)
 - **Alerting** — Rule-based alerts with custom filter expressions, throttling, email notifications, and webhook delivery (Generic, Slack, Teams)
 - **Saved & pinned filters** — Save query state as named filters; pin favourites to appear as one-click chips in the filter panel
 - **Log correlation view** — For any trace ID, see the full trace waterfall plus before/after context events from the same applications
@@ -28,8 +29,7 @@ src/
   LogVault.Infrastructure/     # EF Core + SQLite, LDAP auth, health checks, webhooks
   LogVault.Infrastructure.Mail/# MailKit SMTP for alert emails
   LogVault.Application/        # Parsers, ingestion worker, retention, alert engine
-  LogVault.Api/                # ASP.NET Core minimal API, SignalR hub, Blazor host
-  LogVault.Client/             # Blazor WASM UI
+  LogVault.Api/                # ASP.NET Core minimal API, SignalR hub, Razor Pages UI
 
 tests/
   LogVault.Application.Tests/
@@ -55,7 +55,7 @@ cd LogVault/src/LogVault.Api
 dotnet run
 ```
 
-The API starts on `https://localhost:5001` by default. The Blazor client is served from the same host.
+The app starts on `http://localhost:5041` by default (HTTPS on `https://localhost:7154`). The Razor Pages UI is served from the same host. The browser opens automatically when running the `http` or `https` launch profile.
 
 The SQLite database (`logvault.db`) is created and migrated automatically on first run.
 
@@ -310,8 +310,34 @@ Requires `User` or `Admin` role.
 | `traceId` | Filter by trace ID (exact match) |
 | `prop` / `propValue` | Property key/value filter |
 | `propOp` | Property filter operator: `Contains` (default), `Equals`, `NotEquals` |
+| `expr` | SQL-like expression filter — overrides individual params when set (e.g. `level >= Warning AND app == "MyApi" AND prop:UserId == "42"`) |
 | `page` / `pageSize` | Pagination (max pageSize: 500) |
 | `sort` / `desc` | Sort field and direction (default: Timestamp descending) |
+
+**Expression syntax for `expr`:**
+
+Conditions are separated by `AND`. Supported fields and operators:
+
+| Field | Aliases | Operators |
+|-------|---------|-----------|
+| `level` | | `>=`, `>`, `<=`, `<`, `==` |
+| `app` | `application` | `==`, `contains` |
+| `env` | `environment` | `==` |
+| `message` | `msg` | `contains`, `==` |
+| `exception` | `ex` | `contains`, `==` |
+| `trace` | `traceid` | `==` |
+| `timestamp` | `time`, `ts` | `>=`, `>`, `<=`, `<` |
+| `prop:Key` | | `==`, `!=`, `contains` |
+
+String values may be quoted (`"my value"`) or unquoted for single words. Level values: `Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`.
+
+Examples:
+```
+level >= Warning
+level >= Error AND app == "PaymentService"
+message contains "timeout" AND prop:UserId == "42"
+timestamp >= "2026-01-01T00:00:00Z" AND level == Error
+```
 
 **Query parameters for `/api/logs/correlate`:**
 

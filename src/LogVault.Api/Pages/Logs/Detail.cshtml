@@ -9,7 +9,17 @@
 }
 
 <div class="d-flex align-items-center gap-2 mb-3">
-    <a asp-page="/Logs/Index" class="btn btn-sm btn-outline-secondary">← Back</a>
+    <a id="btn-back" href="/logs" class="btn btn-sm btn-outline-secondary">← Back</a>
+    <script>
+        (function () {
+            try {
+                var s = JSON.parse(sessionStorage.getItem('lv_scroll_restore'));
+                if (s && typeof s.url === 'string' && s.url.includes('/logs')) {
+                    document.getElementById('btn-back').href = s.url;
+                }
+            } catch (_) {}
+        })();
+    </script>
     <h4 class="mb-0">Log Event #@Model.Event.Id</h4>
     <span class="badge @badgeClass">@Model.Event.Level</span>
 </div>

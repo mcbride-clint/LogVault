@@ -6,6 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="csrf-token" content="@Antiforgery.GetAndStoreTokens(Context).RequestToken" />
     <title>@(ViewData["Title"] != null ? ViewData["Title"] + " — " : "")LogVault</title>
+    <!-- Inline theme init — must execute before CSS to prevent dark-mode FOUC -->
+    <script>
+        (function () {
+            var s = localStorage.getItem('logvault-theme');
+            var dark = s ? s === 'dark' : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            if (dark) document.documentElement.setAttribute('data-bs-theme', 'dark');
+        })();
+    </script>
     <link rel="stylesheet" href="/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="/css/roboto.css" />
     <link rel="stylesheet" href="/css/site.css" />

@@ -66,6 +66,23 @@
             </div>
         }
     </div>
+    <div class="row g-2 mt-1">
+        <div class="col">
+            <input type="text" class="form-control form-control-sm font-monospace" name="expr"
+                   value="@Model.Expr" data-expr-editor
+                   placeholder='Expression: level &gt;= Warning AND app == "MyApi" AND message contains "timeout"' />
+        </div>
+        <div class="col-auto d-flex align-items-center">
+            <a tabindex="0" role="button" class="text-muted small text-decoration-none"
+               data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top"
+               data-bs-title="Expression Syntax"
+               data-bs-content="Fields: level, app, env, message, exception, trace, timestamp, prop:Key — Operators: ==, !=, &gt;=, &gt;, &lt;=, &lt;, contains — Join with AND">? help</a>
+        </div>
+    </div>
+    @if (Model.ExprError != null)
+    {
+        <div class="alert alert-danger py-1 mt-2 small mb-0">Expression error: @Model.ExprError</div>
+    }
     <input type="hidden" name="sort" value="@Model.Sort" />
     <input type="hidden" name="desc" value="@Model.Desc.ToString().ToLower()" />
     <input type="hidden" name="pageSize" value="@Model.PageSize" />
@@ -94,7 +111,7 @@ else
             <tbody id="log-rows">
                 @foreach (var ev in Model.Result.Items)
                 {
-                    <tr class="lv-log-row" onclick="window.location='/logs/@ev.Id'" style="cursor:pointer">
+                    <tr class="lv-log-row" onclick="lvNavigateToLog(@ev.Id)" style="cursor:pointer">
                         <td class="text-nowrap small">@ev.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
                         <td><span class="badge @IndexModel.LevelBadgeClass(ev.Level)">@ev.Level</span></td>
                         <td class="small text-truncate" style="max-width:120px">@ev.SourceApplication</td>
@@ -133,6 +150,7 @@ else
 }
 
 @section Scripts {
+    <script src="/js/expr-editor.js"></script>
     <script src="/js/signalr.min.js"></script>
     <script src="/js/logs.js"></script>
 }
