@@ -57,16 +57,19 @@ public class EfLogEventRepository : ILogEventRepository
         return q.AsAsyncEnumerable();
     }
 
-    public async Task<LogStats> GetStatsAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default)
+    public async Task<LogStats> GetStatsAsync(DateTimeOffset from, DateTimeOffset to, LogEventQuery? filter = null, CancellationToken ct = default)
     {
-        var byLevel = await _db.LogEvents
-            .Where(e => e.Timestamp >= from && e.Timestamp <= to)
+        var baseQuery = _db.LogEvents.AsQueryable()
+            .Where(e => e.Timestamp >= from && e.Timestamp <= to);
+        if (filter != null)
+            baseQuery = ApplyFilters(baseQuery, filter);
+
+        var byLevel = await baseQuery
             .GroupBy(e => e.Level)
             .Select(g => new LevelCount(g.Key, g.Count()))
             .ToListAsync(ct);
 
-        var timestamps = await _db.LogEvents
-            .Where(e => e.Timestamp >= from && e.Timestamp <= to)
+        var timestamps = await baseQuery
             .Select(e => e.Timestamp)
             .ToListAsync(ct);
 
@@ -106,23 +109,29 @@ public class EfLogEventRepository : ILogEventRepository
 
         if (query.From.HasValue) q = q.Where(e => e.Timestamp >= query.From.Value);
         if (query.To.HasValue) q = q.Where(e => e.Timestamp <= query.To.Value);
-        if (query.MinLevel.HasValue) q = q.Where(e => e.Level >= query.MinLevel.Value);
-        if (query.MaxLevel.HasValue) q = q.Where(e => e.Level <= query.MaxLevel.Value);
-        if (!string.IsNullOrEmpty(query.SourceApplication))
-            q = q.Where(e => e.SourceApplication != null && e.SourceApplication.Contains(query.SourceApplication));
-        if (!string.IsNullOrEmpty(query.SourceEnvironment))
-            q = q.Where(e => e.SourceEnvironment == query.SourceEnvironment);
-        if (!string.IsNullOrEmpty(query.MessageContains))
-            q = q.Where(e => e.RenderedMessage.Contains(query.MessageContains));
-        if (!string.IsNullOrEmpty(query.ExceptionContains))
-            q = q.Where(e => e.Exception != null && e.Exception.Contains(query.ExceptionContains));
-        if (!string.IsNullOrEmpty(query.TraceId))
-            q = q.Where(e => e.TraceId == query.TraceId);
-        if (!string.IsNullOrEmpty(query.PropertyKey))
+
+        return ApplyFilters(q, query);
+    }
+
+    private IQueryable<LogEvent> ApplyFilters(IQueryable<LogEvent> q, LogEventQuery filter)
+    {
+        if (filter.MinLevel.HasValue) q = q.Where(e => e.Level >= filter.MinLevel.Value);
+        if (filter.MaxLevel.HasValue) q = q.Where(e => e.Level <= filter.MaxLevel.Value);
+        if (!string.IsNullOrEmpty(filter.SourceApplication))
+            q = q.Where(e => e.SourceApplication != null && e.SourceApplication.Contains(filter.SourceApplication));
+        if (!string.IsNullOrEmpty(filter.SourceEnvironment))
+            q = q.Where(e => e.SourceEnvironment == filter.SourceEnvironment);
+        if (!string.IsNullOrEmpty(filter.MessageContains))
+            q = q.Where(e => e.RenderedMessage.Contains(filter.MessageContains));
+        if (!string.IsNullOrEmpty(filter.ExceptionContains))
+            q = q.Where(e => e.Exception != null && e.Exception.Contains(filter.ExceptionContains));
+        if (!string.IsNullOrEmpty(filter.TraceId))
+            q = q.Where(e => e.TraceId == filter.TraceId);
+        if (!string.IsNullOrEmpty(filter.PropertyKey))
         {
-            var key = query.PropertyKey;
-            var val = query.PropertyValue ?? "";
-            switch (query.PropertyOp)
+            var key = filter.PropertyKey;
+            var val = filter.PropertyValue ?? "";
+            switch (filter.PropertyOp)
             {
                 case Domain.Models.PropertyFilterOp.Equals:
                     q = q.Where(e =>
@@ -146,9 +155,9 @@ public class EfLogEventRepository : ILogEventRepository
             }
         }
 
-        if (query.PropertyConditions is { Count: > 0 })
+        if (filter.PropertyConditions is { Count: > 0 })
         {
-            foreach (var pc in query.PropertyConditions)
+            foreach (var pc in filter.PropertyConditions)
             {
                 var key = pc.Key;
                 var val = pc.Value;
@@ -177,9 +186,9 @@ public class EfLogEventRepository : ILogEventRepository
             }
         }
 
-        if (!string.IsNullOrEmpty(query.FullTextSearch))
+        if (!string.IsNullOrEmpty(filter.FullTextSearch))
         {
-            foreach (var term in query.FullTextSearch.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            foreach (var term in filter.FullTextSearch.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
                 var t = term;
                 q = q.Where(e =>

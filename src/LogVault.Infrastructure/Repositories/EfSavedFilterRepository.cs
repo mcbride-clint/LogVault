@@ -14,6 +14,19 @@ public class EfSavedFilterRepository : ISavedFilterRepository
     public async Task<IReadOnlyList<SavedFilter>> GetByOwnerAsync(string ownerId, CancellationToken ct = default)
         => await _db.SavedFilters.Where(f => f.OwnerId == ownerId).OrderBy(f => f.Name).ToListAsync(ct);
 
+    public async Task<IReadOnlyList<SavedFilter>> GetAllAccessibleAsync(string ownerId, CancellationToken ct = default)
+        => await _db.SavedFilters
+            .Where(f => f.OwnerId == ownerId || f.IsPublic)
+            .OrderByDescending(f => f.IsPinned)
+            .ThenBy(f => f.Name)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<SavedFilter>> GetAllAsync(CancellationToken ct = default)
+        => await _db.SavedFilters
+            .OrderByDescending(f => f.IsPinned)
+            .ThenBy(f => f.Name)
+            .ToListAsync(ct);
+
     public async Task<SavedFilter?> GetByIdAsync(int id, CancellationToken ct = default)
         => await _db.SavedFilters.FindAsync([id], ct);
 

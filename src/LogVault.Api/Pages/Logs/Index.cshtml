@@ -1,0 +1,433 @@
+@page
+@model LogVault.Api.Pages.Logs.IndexModel
+@using LogVault.Domain.Entities
+@{
+    ViewData["Title"] = "Log Explorer";
+    int totalPages = (int)Math.Ceiling((double)Model.Result.TotalCount / Model.PageSize);
+    var myQueries = Model.SavedFilters.Where(f => f.OwnerId == User.Identity!.Name).ToList();
+    var sharedQueries = Model.SavedFilters.Where(f => f.OwnerId != User.Identity!.Name).ToList();
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-outline-secondary d-none" id="btn-show-sidebar"
+                onclick="lvToggleSidebar()" title="Show saved queries">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h11A1.5 1.5 0 0 1 15 2.5v11a1.5 1.5 0 0 1-1.5 1.5H5v-1h8.5a.5.5 0 0 0 .5-.5v-11a.5.5 0 0 0-.5-.5h-11a.5.5 0 0 0-.5.5V5H1V2.5z"/><path d="M1 7.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm0 3a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm0-6a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 1 4.5z"/>
+            </svg>
+        </button>
+        <h4 class="mb-0">Log Explorer</h4>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <span id="live-indicator" class="d-none">
+            <span class="lv-live-dot"></span> Live
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" id="btn-live-toggle">Start Live Tail</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="lvOpenSaveQueryModal()">Save Query</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="lvCreateAlert()">Create Alert</button>
+        <a asp-page="/Logs/Index" class="btn btn-sm btn-outline-secondary">Clear</a>
+    </div>
+</div>
+
+<form method="get" class="mb-3">
+    <div class="row g-2">
+        <div class="col-sm-6 col-md-3">
+            <input type="text" class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Message contains…" />
+        </div>
+        <div class="col-sm-6 col-md-2">
+            <select class="form-select form-select-sm" name="level">
+                <option value="">All levels</option>
+                @foreach (var lv in Enum.GetValues<LogLevel>())
+                {
+                    <option value="@lv" selected="@(Model.Level == lv.ToString())">@lv</option>
+                }
+            </select>
+        </div>
+        <div class="col-sm-6 col-md-2">
+            <input type="text" class="form-control form-control-sm" name="app" value="@Model.App" placeholder="Application" />
+        </div>
+        <div class="col-sm-6 col-md-2">
+            <input type="text" class="form-control form-control-sm" name="env" value="@Model.Env" placeholder="Environment" />
+        </div>
+        <div class="col-sm-6 col-md-2">
+            <input type="text" class="form-control form-control-sm" name="traceId" value="@Model.TraceId" placeholder="Trace ID" />
+        </div>
+        <div class="col-sm-6 col-md-1">
+            <button type="submit" class="btn btn-sm btn-primary w-100">Search</button>
+        </div>
+    </div>
+    <div class="row g-2 mt-1">
+        <div class="col-md-4">
+            <input type="datetime-local" class="form-control form-control-sm" name="from"
+                   value="@Model.From?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm")" />
+        </div>
+        <div class="col-md-4">
+            <input type="datetime-local" class="form-control form-control-sm" name="to"
+                   value="@Model.To?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm")" />
+        </div>
+    </div>
+    <div class="row g-2 mt-1">
+        <div class="col">
+            <input type="text" class="form-control form-control-sm font-monospace" name="expr"
+                   value="@Model.Expr" data-expr-editor
+                   placeholder='Expression: level &gt;= Warning AND app == "MyApi" AND message contains "timeout"' />
+        </div>
+        <div class="col-auto d-flex align-items-center">
+            <a tabindex="0" role="button" class="text-muted small text-decoration-none"
+               data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top"
+               data-bs-title="Expression Syntax"
+               data-bs-content="Fields: level, app, env, message, exception, trace, timestamp, prop:Key — Operators: ==, !=, &gt;=, &gt;, &lt;=, &lt;, contains — Join with AND">? help</a>
+        </div>
+    </div>
+    @if (Model.ExprError != null)
+    {
+        <div class="alert alert-danger py-1 mt-2 small mb-0">Expression error: @Model.ExprError</div>
+    }
+    <input type="hidden" name="sort" value="@Model.Sort" />
+    <input type="hidden" name="desc" value="@Model.Desc.ToString().ToLower()" />
+    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+</form>
+
+<div class="d-flex gap-0" id="lv-explorer-body">
+    <!-- Saved Queries Sidebar -->
+    <div class="lv-query-sidebar me-3" id="lv-query-sidebar">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="lv-query-sidebar-heading">Queries</span>
+            <button class="btn btn-sm p-0 border-0 text-muted lv-sidebar-close" onclick="lvToggleSidebar()" title="Hide sidebar">×</button>
+        </div>
+
+        @if (myQueries.Count > 0)
+        {
+            <div class="mb-2">
+                <div class="lv-query-group-label">My Queries</div>
+                @foreach (var sf in myQueries)
+                {
+                    <div class="lv-query-item @(sf.IsPinned ? "lv-query-pinned" : "")"
+                         data-filter-expr="@sf.FilterJson"
+                         title="@sf.FilterJson">
+                        @sf.Name
+                        @if (sf.IsPublic)
+                        {
+                            <span class="lv-query-shared-badge">shared</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @if (sharedQueries.Count > 0)
+        {
+            <div class="mb-2">
+                <div class="lv-query-group-label">Shared</div>
+                @foreach (var sf in sharedQueries)
+                {
+                    <div class="lv-query-item" data-filter-expr="@sf.FilterJson" title="@sf.FilterJson">
+                        @sf.Name
+                        <span class="lv-query-owner">@sf.OwnerId.Split('\\').Last()</span>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (!myQueries.Any() && !sharedQueries.Any())
+        {
+            <div class="small text-muted fst-italic">No saved queries yet.</div>
+        }
+
+        <div class="mt-auto pt-2">
+            <a asp-page="/Queries/Index" class="small text-muted text-decoration-none">Manage queries →</a>
+        </div>
+    </div>
+
+    <!-- Main log content -->
+    <div class="flex-grow-1 min-width-0">
+        @if (Model.Result.TotalCount == 0)
+        {
+            <p class="text-muted">No events match the current filter.</p>
+        }
+        else
+        {
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="text-muted">@Model.Result.TotalCount.ToString("N0") events · page @Model.Page of @totalPages</small>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm table-hover lv-log-table mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width:160px">Timestamp</th>
+                            <th style="width:90px">Level</th>
+                            <th style="width:120px">Application</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody id="log-rows">
+                        @foreach (var ev in Model.Result.Items)
+                        {
+                            <tr class="lv-log-row" onclick="lvNavigateToLog(@ev.Id)" style="cursor:pointer">
+                                <td class="text-nowrap small">@ev.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td><span class="badge @IndexModel.LevelBadgeClass(ev.Level)">@ev.Level</span></td>
+                                <td class="small text-truncate" style="max-width:120px">@ev.SourceApplication</td>
+                                <td class="small text-truncate" style="max-width:500px">@ev.RenderedMessage</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (totalPages > 1)
+            {
+                <nav class="mt-2">
+                    <ul class="pagination pagination-sm">
+                        @if (Model.Page > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" asp-page="/Logs/Index" asp-all-route-data="Model.BuildPageRouteValues(Model.Page - 1)">«</a>
+                            </li>
+                        }
+                        @for (int p = Math.Max(1, Model.Page - 2); p <= Math.Min(totalPages, Model.Page + 2); p++)
+                        {
+                            <li class="page-item @(p == Model.Page ? "active" : "")">
+                                <a class="page-link" asp-page="/Logs/Index" asp-all-route-data="Model.BuildPageRouteValues(p)">@p</a>
+                            </li>
+                        }
+                        @if (Model.Page < totalPages)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" asp-page="/Logs/Index" asp-all-route-data="Model.BuildPageRouteValues(Model.Page + 1)">»</a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+        }
+    </div>
+</div>
+
+<!-- Create Alert Modal -->
+<div class="modal fade" id="createAlertModal" tabindex="-1" aria-labelledby="createAlertModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title" id="createAlertModalLabel">Create Alert Rule</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="ca-form">
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">Rule Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" id="ca-name" placeholder="e.g. Payment service errors" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">Filter Expression <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm font-monospace" id="ca-expr"
+                               placeholder='level >= Error AND app == "MyApi"' />
+                        <div class="form-text">Same syntax as the Log Explorer expression field.</div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-sm-6">
+                            <label class="form-label form-label-sm">Minimum Level</label>
+                            <select class="form-select form-select-sm" id="ca-level">
+                                <option value="0">Verbose</option>
+                                <option value="1">Debug</option>
+                                <option value="2">Information</option>
+                                <option value="3">Warning</option>
+                                <option value="4" selected>Error</option>
+                                <option value="5">Fatal</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label form-label-sm">Application Filter</label>
+                            <input type="text" class="form-control form-control-sm" id="ca-app" placeholder="Any application" />
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">Throttle (minutes)</label>
+                        <input type="number" min="1" class="form-control form-control-sm" id="ca-throttle"
+                               value="60" style="max-width:120px" />
+                        <div class="form-text">Email recipients and webhooks can be configured after saving.</div>
+                    </div>
+                    <div id="ca-error" class="alert alert-danger py-1 small d-none"></div>
+                </div>
+                <div id="ca-success" class="d-none text-center py-3">
+                    <div class="text-success fw-semibold mb-2">Alert rule created</div>
+                    <a id="ca-success-link" href="#" class="btn btn-sm btn-outline-primary">View &amp; edit rule →</a>
+                </div>
+            </div>
+            <div class="modal-footer py-2" id="ca-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="lvSubmitCreateAlert()">Create Rule</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Save Query Modal -->
+<div class="modal fade" id="saveQueryModal" tabindex="-1" aria-labelledby="saveQueryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title" id="saveQueryModalLabel">Save Query</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Name</label>
+                    <input type="text" class="form-control form-control-sm" id="sq-name" placeholder="My query name" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Visibility</label>
+                    <div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="sqVisibility" id="sq-private" value="private" checked />
+                            <label class="form-check-label small" for="sq-private">Private</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="sqVisibility" id="sq-public" value="public" />
+                            <label class="form-check-label small" for="sq-public">Shared</label>
+                        </div>
+                    </div>
+                </div>
+                <div id="sq-error" class="text-danger small d-none"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="lvSaveQuery()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="/js/expr-editor.js"></script>
+    <script src="/js/signalr.min.js"></script>
+    <script src="/js/logs.js"></script>
+    <script>
+    // ── Sidebar ───────────────────────────────────────────────────────────────
+    const SIDEBAR_KEY = 'lv_query_sidebar_open';
+
+    function lvToggleSidebar() {
+        const sidebar = document.getElementById('lv-query-sidebar');
+        const showBtn = document.getElementById('btn-show-sidebar');
+        const isOpen = !sidebar.classList.contains('d-none');
+        sidebar.classList.toggle('d-none', isOpen);
+        showBtn.classList.toggle('d-none', !isOpen);
+        try { localStorage.setItem(SIDEBAR_KEY, isOpen ? '0' : '1'); } catch(_) {}
+    }
+
+    // Restore sidebar open/close state on load
+    (function () {
+        const saved = localStorage.getItem(SIDEBAR_KEY);
+        if (saved === '0') {
+            document.getElementById('lv-query-sidebar').classList.add('d-none');
+            document.getElementById('btn-show-sidebar').classList.remove('d-none');
+        }
+    })();
+
+    // Wire up query items via data-filter-expr attributes
+    document.querySelectorAll('.lv-query-item[data-filter-expr]').forEach(function (el) {
+        el.addEventListener('click', function () {
+            lvApplySavedFilter(el.dataset.filterExpr);
+        });
+    });
+
+    // ── Create Alert Modal ────────────────────────────────────────────────────
+    const lvLevelMap = { Verbose: 0, Debug: 1, Information: 2, Warning: 3, Error: 4, Fatal: 5 };
+
+    function lvCreateAlert() {
+        const expr  = document.querySelector('[name="expr"]').value.trim();
+        const app   = document.querySelector('[name="app"]').value.trim();
+        const level = document.querySelector('[name="level"]').value;
+
+        document.getElementById('ca-name').value  = '';
+        document.getElementById('ca-expr').value  = expr;
+        document.getElementById('ca-app').value   = app;
+        document.getElementById('ca-level').value = lvLevelMap[level] ?? 4; // default Error
+        document.getElementById('ca-throttle').value = '60';
+        document.getElementById('ca-error').classList.add('d-none');
+        document.getElementById('ca-form').classList.remove('d-none');
+        document.getElementById('ca-success').classList.add('d-none');
+        document.getElementById('ca-footer').classList.remove('d-none');
+
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('createAlertModal')).show();
+    }
+
+    async function lvSubmitCreateAlert() {
+        const name     = document.getElementById('ca-name').value.trim();
+        const expr     = document.getElementById('ca-expr').value.trim();
+        const minLevel = parseInt(document.getElementById('ca-level').value, 10);
+        const app      = document.getElementById('ca-app').value.trim();
+        const throttle = parseInt(document.getElementById('ca-throttle').value, 10) || 60;
+        const errEl    = document.getElementById('ca-error');
+
+        if (!name) { errEl.textContent = 'Rule name is required.'; errEl.classList.remove('d-none'); return; }
+        if (!expr) { errEl.textContent = 'Filter expression is required.'; errEl.classList.remove('d-none'); return; }
+        errEl.classList.add('d-none');
+
+        const resp = await lvFetch('/api/alerts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name,
+                filterExpression: expr,
+                minimumLevel: minLevel,
+                sourceApplicationFilter: app || null,
+                throttleMinutes: throttle,
+                isEnabled: true,
+                recipientEmails: [],
+                webhookUrl: null,
+                webhookFormat: 0
+            })
+        });
+
+        if (resp.ok) {
+            const rule = await resp.json();
+            document.getElementById('ca-form').classList.add('d-none');
+            document.getElementById('ca-footer').classList.add('d-none');
+            document.getElementById('ca-success').classList.remove('d-none');
+            document.getElementById('ca-success-link').href = '/alerts/' + rule.id;
+        } else {
+            const json = await resp.json().catch(() => ({}));
+            errEl.textContent = 'Failed: ' + (json.detail ?? json.errors?.filterExpression?.[0] ?? json.title ?? resp.status);
+            errEl.classList.remove('d-none');
+        }
+    }
+
+    // ── Save Query Modal ──────────────────────────────────────────────────────
+    function lvOpenSaveQueryModal() {
+        document.getElementById('sq-name').value = '';
+        document.getElementById('sq-error').classList.add('d-none');
+        document.getElementById('sq-private').checked = true;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('saveQueryModal')).show();
+    }
+
+    async function lvSaveQuery() {
+        const name = document.getElementById('sq-name').value.trim();
+        const isPublic = document.querySelector('input[name="sqVisibility"]:checked').value === 'public';
+        const exprInput = document.querySelector('[name="expr"]');
+        const filterJson = exprInput ? exprInput.value.trim() : '';
+        const errEl = document.getElementById('sq-error');
+
+        if (!name) {
+            errEl.textContent = 'Name is required.';
+            errEl.classList.remove('d-none');
+            return;
+        }
+
+        const resp = await lvFetch('/api/savedfilters', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, filterJson, isPublic })
+        });
+
+        if (resp.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('saveQueryModal')).hide();
+            window.location.reload();
+        } else {
+            const json = await resp.json().catch(() => ({}));
+            errEl.textContent = 'Save failed: ' + (json.error ?? resp.status);
+            errEl.classList.remove('d-none');
+        }
+    }
+    </script>
+}

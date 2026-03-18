@@ -11,7 +11,7 @@ public interface ILogEventRepository
     Task<LogEvent?> GetByIdAsync(long id, CancellationToken ct = default);
     Task<int> DeleteOlderThanAsync(DateTimeOffset cutoff, CancellationToken ct = default);
     IAsyncEnumerable<LogEvent> StreamAsync(LogEventQuery query, CancellationToken ct = default);
-    Task<LogStats> GetStatsAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default);
+    Task<LogStats> GetStatsAsync(DateTimeOffset from, DateTimeOffset to, LogEventQuery? filter = null, CancellationToken ct = default);
     Task<IReadOnlyList<string>> GetDistinctApplicationsAsync(CancellationToken ct = default);
     Task<IReadOnlyList<AppCount>> GetTopApplicationsAsync(DateTimeOffset from, DateTimeOffset to, int limit, CancellationToken ct = default);
 }

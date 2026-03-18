@@ -15,4 +15,5 @@ public class LogHubFilter
     public string? SourceApplication { get; set; }
     public string? SourceEnvironment { get; set; }
     public string? MessageContains { get; set; }
+    public string? TraceId { get; set; }
 }

@@ -1,10 +1,12 @@
 using LogVault.Application;
+using LogVault.Application.Services;
 using LogVault.Application.Workers;
 using LogVault.Api.Auth;
 using LogVault.Api.Configuration;
 using LogVault.Api.Endpoints;
 using LogVault.Api.Hubs;
 using LogVault.Api.Middleware;
+using LogVault.Api.Workers;
 using LogVault.Domain.Services;
 using LogVault.Infrastructure;
 using LogVault.Infrastructure.Data;
@@ -13,19 +15,25 @@ using LogVault.Infrastructure.Mail;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using System.Text.Json.Serialization;
 
 bool seedMode = args.Contains("--seed");
 bool forceReseed = args.Contains("--force");
+bool simulateMode = args.Contains("--simulate");
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
 
-// Serialize enums as strings so the Blazor client can deserialize LogLevel as a string
+// Serialize enums as strings for API responses and Swagger
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
+
+// ----- Razor Pages -----
+builder.Services.AddRazorPages();
+builder.Services.AddAntiforgery(o => o.HeaderName = "X-CSRF-TOKEN");
 
 // ----- Configuration Validation -----
 builder.Services.AddOptions<ActiveDirectoryOptions>()
@@ -53,12 +61,25 @@ builder.Services.AddOptions<ApiKeyOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+builder.Services.AddOptions<IisWatcherOptions>()
+    .BindConfiguration(IisWatcherOptions.Section)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 // ----- Infrastructure -----
 builder.Services.AddLogVaultInfrastructure(config);
 builder.Services.AddLogVaultMail();
 
 // ----- Application -----
 builder.Services.AddLogVaultApplication(config);
+
+// ----- Simulation Worker -----
+if (simulateMode)
+    builder.Services.AddHostedService<SimulationWorker>();
+
+// ----- IIS Log Tail Worker -----
+builder.Services.AddSingleton<IisWatcherRuntimeState>();
+builder.Services.AddHostedService<IisLogTailWorker>();
 
 // ----- SignalR Hub Notifier (Api implements Domain interface) -----
 builder.Services.AddSignalR();
@@ -81,6 +102,10 @@ builder.Services.AddAuthorization(o =>
         ctx.User.IsInRole("Admin") ||
         ctx.User.IsInRole("User") ||
         ctx.User.HasClaim("auth_method", "ApiKey")));
+    // All Razor Pages require at least User or Admin by default (health + API endpoints have explicit auth)
+    o.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .RequireRole("User", "Admin")
+        .Build();
 });
 
 // ----- API Key Middleware -----
@@ -120,6 +145,10 @@ if (seedMode)
     return;
 }
 
+// ----- Simulation Mode -----
+if (simulateMode)
+    app.Logger.LogWarning("*** SIMULATION MODE active — synthetic log events are being generated continuously ***");
+
 // ----- Middleware Pipeline -----
 app.UseExceptionHandler(errApp =>
 {
@@ -137,14 +166,14 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseMiddleware<ApiKeyMiddleware>();
 app.UseAuthorization();
 
 // ----- Health -----
-app.MapHealthChecks("/health", new HealthCheckOptions { AllowCachingResponses = false });
+app.MapHealthChecks("/health", new HealthCheckOptions { AllowCachingResponses = false })
+    .AllowAnonymous();
 
 // ----- SignalR Hub -----
 app.MapHub<LogHub>("/hubs/logs");
@@ -157,8 +186,7 @@ app.MapAdminEndpoints();
 app.MapAuthEndpoints();
 app.MapSavedFilterEndpoints();
 app.MapDashboardEndpoints();
-
-app.MapFallbackToFile("index.html");
+app.MapRazorPages();
 
 app.Run();
 

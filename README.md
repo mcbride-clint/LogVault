@@ -1,6 +1,6 @@
 # LogVault
 
-A self-hosted log ingestion, query, and alerting platform built on ASP.NET Core 8 / .NET 10. LogVault accepts structured logs from your applications, stores them in SQLite, and provides a Blazor WASM UI for querying and real-time monitoring.
+A self-hosted log ingestion, query, and alerting platform built on ASP.NET Core / .NET 10. LogVault accepts structured logs from your applications, stores them in SQLite, and provides a server-rendered Razor Pages UI for querying and real-time monitoring.
 
 ## Features
 
@@ -8,11 +8,14 @@ A self-hosted log ingestion, query, and alerting platform built on ASP.NET Core 
 - **Real-time log tail** — Live streaming via SignalR with per-client filters
 - **Full-text search** — Single search box that matches across message, exception, and all structured properties (multi-term AND logic)
 - **Structured property filtering** — Filter by property key/value with Contains, Equals, or Not Equals operators
-- **Alerting** — Rule-based alerts with custom filter expressions, throttling, email notifications, and webhook delivery (Generic, Slack, Teams)
-- **Saved & pinned filters** — Save query state as named filters; pin favourites to appear as one-click chips in the filter panel
+- **Query expression syntax** — SQL-like `expr` filter combining level, app, message, timestamp, exception, trace ID, and custom property conditions (e.g. `level >= Warning AND app == "MyApi" AND prop:UserId == "42"`). Syntax highlighting and autocomplete are available in both the Log Explorer and Alert rule editor.
+- **Saved Queries** — Save named queries as Private (personal) or Shared (visible to all users). Access them from the collapsible sidebar in the Log Explorer, or manage them on the dedicated Saved Queries page (`/queries`). Click any saved query to instantly apply it. Admins see all queries on the management page.
+- **Create Alert from Log Explorer** — Click "Create Alert" while browsing logs to jump directly to the alert rule editor pre-filled with your current expression and application filter.
+- **Alerting** — Rule-based alerts with custom filter expressions, throttling, email notifications, and webhook delivery (Generic, Slack, Teams). The filter expression editor provides the same syntax highlighting and autocomplete as the Log Explorer.
 - **Log correlation view** — For any trace ID, see the full trace waterfall plus before/after context events from the same applications
 - **Export** — Download query results as CSV or JSON
 - **Dashboards** — Configurable widget-based dashboards (log volume, top applications, recent errors, etc.)
+- **IIS live tail** — Watch IIS W3C log files in real-time (local paths via `FileSystemWatcher`, remote servers via UNC share polling). Per-source application/environment labels. Runtime enable/disable per source via Admin UI without restarting.
 - **API Key auth** — Programmatic ingestion without user credentials
 - **Active Directory integration** — LDAP-backed login with group-based Admin/User roles
 - **Retention** — Automatic or manual purge of old log events
@@ -28,8 +31,7 @@ src/
   LogVault.Infrastructure/     # EF Core + SQLite, LDAP auth, health checks, webhooks
   LogVault.Infrastructure.Mail/# MailKit SMTP for alert emails
   LogVault.Application/        # Parsers, ingestion worker, retention, alert engine
-  LogVault.Api/                # ASP.NET Core minimal API, SignalR hub, Blazor host
-  LogVault.Client/             # Blazor WASM UI
+  LogVault.Api/                # ASP.NET Core minimal API, SignalR hub, Razor Pages UI
 
 tests/
   LogVault.Application.Tests/
@@ -55,7 +57,7 @@ cd LogVault/src/LogVault.Api
 dotnet run
 ```
 
-The API starts on `https://localhost:5001` by default. The Blazor client is served from the same host.
+The app starts on `http://localhost:5041` by default (HTTPS on `https://localhost:7154`). The Razor Pages UI is served from the same host. The browser opens automatically when running the `http` or `https` launch profile.
 
 The SQLite database (`logvault.db`) is created and migrated automatically on first run.
 
@@ -191,6 +193,56 @@ Controls key rotation behaviour.
 
 ---
 
+### IIS Watcher (`IisWatcher`)
+
+Watches IIS W3C log directories in real-time and feeds new entries into the ingestion pipeline as they are written. Local paths use `FileSystemWatcher`; UNC/network paths (`\\server\share\...`) use polling. Only lines appended after LogVault starts are ingested — existing content and old daily files are skipped.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `Enabled` | bool | `false` | Master switch. Set to `true` to activate the watcher. |
+| `PollIntervalMs` | int | `2000` | Default poll interval in ms for UNC paths (used when a source has no per-source override) |
+| `Sources` | array | `[]` | List of `IisLogSource` objects (see below) |
+
+Each entry in `Sources`:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `Path` | string | `""` | Local directory or UNC path to watch |
+| `SourceApplication` | string | `"IIS"` | Label applied to ingested events |
+| `SourceEnvironment` | string? | `null` | Environment label (optional) |
+| `Enabled` | bool | `true` | Whether this source is active on startup |
+| `PollIntervalMs` | int? | `null` | Override poll interval for this source only (UNC paths) |
+
+```json
+"IisWatcher": {
+  "Enabled": true,
+  "PollIntervalMs": 2000,
+  "Sources": [
+    {
+      "Path": "C:\\inetpub\\logs\\LogFiles\\W3SVC1",
+      "SourceApplication": "IIS-local",
+      "SourceEnvironment": "Development"
+    },
+    {
+      "Path": "\\\\web-server-01\\iislogs\\W3SVC1",
+      "SourceApplication": "IIS-web01",
+      "SourceEnvironment": "Production",
+      "PollIntervalMs": 5000
+    },
+    {
+      "Path": "\\\\web-server-02\\iislogs\\W3SVC1",
+      "SourceApplication": "IIS-web02",
+      "SourceEnvironment": "Production",
+      "Enabled": false
+    }
+  ]
+}
+```
+
+Individual sources can be temporarily paused or resumed at runtime via the **Admin › IIS Watcher** page without restarting. Runtime state resets to config defaults on service restart.
+
+---
+
 ### SignalR
 
 | Key | Type | Default | Description |
@@ -310,8 +362,34 @@ Requires `User` or `Admin` role.
 | `traceId` | Filter by trace ID (exact match) |
 | `prop` / `propValue` | Property key/value filter |
 | `propOp` | Property filter operator: `Contains` (default), `Equals`, `NotEquals` |
+| `expr` | SQL-like expression filter — overrides individual params when set (e.g. `level >= Warning AND app == "MyApi" AND prop:UserId == "42"`) |
 | `page` / `pageSize` | Pagination (max pageSize: 500) |
 | `sort` / `desc` | Sort field and direction (default: Timestamp descending) |
+
+**Expression syntax for `expr`:**
+
+Conditions are separated by `AND`. Supported fields and operators:
+
+| Field | Aliases | Operators |
+|-------|---------|-----------|
+| `level` | | `>=`, `>`, `<=`, `<`, `==` |
+| `app` | `application` | `==`, `contains` |
+| `env` | `environment` | `==` |
+| `message` | `msg` | `contains`, `==` |
+| `exception` | `ex` | `contains`, `==` |
+| `trace` | `traceid` | `==` |
+| `timestamp` | `time`, `ts` | `>=`, `>`, `<=`, `<` |
+| `prop:Key` | | `==`, `!=`, `contains` |
+
+String values may be quoted (`"my value"`) or unquoted for single words. Level values: `Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal`.
+
+Examples:
+```
+level >= Warning
+level >= Error AND app == "PaymentService"
+message contains "timeout" AND prop:UserId == "42"
+timestamp >= "2026-01-01T00:00:00Z" AND level == Error
+```
 
 **Query parameters for `/api/logs/correlate`:**
 
@@ -380,6 +458,12 @@ Requires `Admin` role.
 | `POST` | `/api/admin/apikeys` | Create a new API key |
 | `POST` | `/api/admin/apikeys/{id}/rotate` | Rotate a key |
 | `DELETE` | `/api/admin/apikeys/{id}` | Revoke a key |
+| `POST` | `/api/admin/iiswatcher/toggle` | Enable or disable an IIS Watcher source at runtime |
+
+**Toggle IIS Watcher source body:**
+```json
+{ "path": "\\\\web-server-01\\iislogs\\W3SVC1", "enabled": false }
+```
 
 **Create API key body:**
 ```json

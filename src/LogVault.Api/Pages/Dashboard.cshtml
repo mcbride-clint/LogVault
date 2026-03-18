@@ -1,0 +1,97 @@
+@page
+@using System.Text.Json
+@model LogVault.Api.Pages.DashboardModel
+@{
+    ViewData["Title"] = "Dashboard";
+    var widgetsJson = JsonSerializer.Serialize(Model.Widgets.Select(w => new
+    {
+        id = w.Id,
+        widgetType = w.WidgetType,
+        title = w.Title,
+        sortOrder = w.SortOrder,
+        configJson = w.ConfigJson
+    }));
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Dashboard</h4>
+    <button class="btn btn-sm btn-outline-primary" id="btn-add-widget">+ Add Widget</button>
+</div>
+
+<div class="row g-3" id="widgets-container"
+     data-dashboard-id="@Model.DashboardId"
+     data-widgets-json="@widgetsJson">
+    @foreach (var w in Model.Widgets)
+    {
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card lv-widget-card h-100"
+                 data-widget-id="@w.Id"
+                 data-widget-type="@w.WidgetType"
+                 data-widget-config="@w.ConfigJson">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>@w.Title</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="lv-widget-badge badge bg-secondary">—</span>
+                        <button class="btn btn-link btn-sm p-0 lv-widget-edit" title="Edit widget" style="line-height:1">&#9998;</button>
+                        <button class="btn btn-link btn-sm p-0 lv-widget-remove text-danger" title="Remove widget" style="line-height:1">&times;</button>
+                    </div>
+                </div>
+                <div class="card-body lv-widget-body d-flex flex-column justify-content-center">
+                    <div class="lv-widget-content text-center text-muted small">Loading…</div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Widget configuration modal -->
+<div class="modal fade" id="widget-modal" tabindex="-1" aria-labelledby="widget-modal-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="widget-modal-title">Add Widget</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="wm-edit-id" value="" />
+                <div class="mb-3">
+                    <label class="form-label" for="wm-title">Title</label>
+                    <input type="text" class="form-control" id="wm-title" placeholder="Widget title" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="wm-type">Widget Type</label>
+                    <select class="form-select" id="wm-type">
+                        <option value="ByLevel">By Level</option>
+                        <option value="EventRate">Event Rate</option>
+                        <option value="ErrorList">Error List</option>
+                        <option value="TopApplications">Top Applications</option>
+                        <option value="QueryList">Query — Event List</option>
+                        <option value="QueryTrend">Query — Hourly Trend</option>
+                    </select>
+                </div>
+                <div class="mb-3 wm-query-field d-none">
+                    <label class="form-label" for="wm-filter-id">Saved Query</label>
+                    <select class="form-select" id="wm-filter-id">
+                        <option value="">Loading…</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="wm-hours">Time Window (hours)</label>
+                    <input type="number" class="form-control" id="wm-hours" value="24" min="1" max="720" />
+                </div>
+                <div class="mb-3 wm-limit-field">
+                    <label class="form-label" for="wm-limit">Max Events</label>
+                    <input type="number" class="form-control" id="wm-limit" value="10" min="1" max="50" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="wm-save">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="/js/dashboard.js"></script>
+}

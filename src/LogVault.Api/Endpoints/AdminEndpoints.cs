@@ -1,7 +1,10 @@
+using LogVault.Api.Configuration;
 using LogVault.Api.Middleware;
+using LogVault.Application.Services;
 using LogVault.Application.Workers;
 using LogVault.Domain.Entities;
 using LogVault.Domain.Repositories;
+using Microsoft.Extensions.Options;
 
 namespace LogVault.Api.Endpoints;
 
@@ -105,11 +108,25 @@ public static class AdminEndpoints
             return Results.NoContent();
         }).WithName("RevokeApiKey").WithTags("Admin");
 
+        // IIS Watcher runtime toggle
+        group.MapPost("/iiswatcher/toggle", (
+            IisWatcherToggleRequest req,
+            IisWatcherRuntimeState state,
+            IOptions<IisWatcherOptions> opts) =>
+        {
+            var source = opts.Value.Sources.FirstOrDefault(s =>
+                string.Equals(s.Path, req.Path, StringComparison.OrdinalIgnoreCase));
+            if (source is null) return Results.NotFound(new { error = "Source not found" });
+            state.SetEnabled(req.Path, req.Enabled);
+            return Results.Ok(new { path = req.Path, enabled = req.Enabled });
+        }).WithName("ToggleIisWatcher").WithTags("Admin");
+
         return app;
     }
 }
 
 public record CreateApiKeyRequest(string Label, string? DefaultApplication);
+public record IisWatcherToggleRequest(string Path, bool Enabled);
 
 public record ApiKeyDto(int Id, string Label, string? DefaultApplication, bool IsEnabled, bool IsRevoked,
     DateTimeOffset CreatedAt, DateTimeOffset? ExpiresAt, int? RotatedFromId)
