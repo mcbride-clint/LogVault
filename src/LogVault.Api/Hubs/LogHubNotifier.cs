@@ -60,6 +60,9 @@ public class LogHubNotifier : ILogHubNotifier
         if (!string.IsNullOrEmpty(filter.MessageContains) &&
             !ev.RenderedMessage.Contains(filter.MessageContains, StringComparison.OrdinalIgnoreCase))
             return false;
+        if (!string.IsNullOrEmpty(filter.TraceId) &&
+            !string.Equals(ev.TraceId, filter.TraceId, StringComparison.OrdinalIgnoreCase))
+            return false;
         return true;
     }
 }

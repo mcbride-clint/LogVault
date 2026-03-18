@@ -40,6 +40,7 @@
     const btnToggle = document.getElementById('btn-live-toggle');
     const indicator = document.getElementById('live-indicator');
     const tbody = document.getElementById('log-rows');
+    const exprInput = document.querySelector('[data-expr-editor]');
 
     if (!btnToggle) return;
 
@@ -47,6 +48,26 @@
         if (liveTailActive) stopLiveTail();
         else startLiveTail();
     });
+
+    function buildFilter() {
+        const get = name => {
+            const el = document.querySelector(`[name="${name}"]`);
+            return el?.value?.trim() || null;
+        };
+        return {
+            messageContains: get('q'),
+            minLevel: get('level'),
+            sourceApplication: get('app'),
+            sourceEnvironment: get('env'),
+            traceId: get('traceId')
+        };
+    }
+
+    function setExprDisabled(disabled) {
+        if (!exprInput) return;
+        exprInput.disabled = disabled;
+        exprInput.title = disabled ? 'Expression filters are not supported during Live Tail' : '';
+    }
 
     function startLiveTail() {
         connection = new signalR.HubConnectionBuilder()
@@ -71,12 +92,13 @@
         });
 
         connection.start()
-            .then(() => connection.invoke('SetFilter', {}))
+            .then(() => connection.invoke('SetFilter', buildFilter()))
             .then(() => {
                 liveTailActive = true;
                 btnToggle.textContent = 'Stop Live Tail';
                 btnToggle.classList.replace('btn-outline-secondary', 'btn-outline-danger');
                 indicator.classList.remove('d-none');
+                setExprDisabled(true);
             })
             .catch(err => console.error('SignalR connection error:', err));
     }
@@ -87,6 +109,7 @@
         btnToggle.textContent = 'Start Live Tail';
         btnToggle.classList.replace('btn-outline-danger', 'btn-outline-secondary');
         indicator.classList.add('d-none');
+        setExprDisabled(false);
     }
 
     function formatTs(ts) {
