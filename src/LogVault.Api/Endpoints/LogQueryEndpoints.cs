@@ -97,11 +97,29 @@ public static class LogQueryEndpoints
             ILogEventRepository repo,
             DateTimeOffset? from,
             DateTimeOffset? to,
+            string? expr,
             CancellationToken ct) =>
         {
             var f = from ?? DateTimeOffset.UtcNow.AddHours(-24);
             var t = to ?? DateTimeOffset.UtcNow;
-            var stats = await repo.GetStatsAsync(f, t, ct);
+            LogEventQuery? filter = null;
+            if (!string.IsNullOrWhiteSpace(expr))
+            {
+                var parsed = LogQueryExpressionParser.Parse(expr);
+                if (parsed.HasError)
+                    return Results.BadRequest(new { error = parsed.Error });
+                filter = new LogEventQuery(
+                    From: null, To: null,
+                    MinLevel: parsed.MinLevel, MaxLevel: parsed.MaxLevel,
+                    SourceApplication: parsed.SourceApplication, SourceEnvironment: parsed.SourceEnvironment,
+                    MessageContains: parsed.MessageContains, ExceptionContains: parsed.ExceptionContains,
+                    PropertyKey: null, PropertyValue: null,
+                    TraceId: parsed.TraceId,
+                    Page: 1, PageSize: 1,
+                    SortBy: "Timestamp", Descending: true,
+                    PropertyConditions: parsed.PropertyConditions.Count > 0 ? parsed.PropertyConditions : null);
+            }
+            var stats = await repo.GetStatsAsync(f, t, filter, ct);
             return Results.Ok(stats);
         }).WithName("GetStats").WithTags("Query");
 
